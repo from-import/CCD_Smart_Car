@@ -35,7 +35,7 @@ def duty_angle(freq, angle):
 
 
 # 初始角度 90 度 也就是舵机中值角度
-angle = 90.0
+angle = 101
 # 舵机动作方向
 dir = 1
 # 获取舵机中值角度对应占空比
@@ -52,12 +52,12 @@ while True:
     # 往复计算舵机角度
     if dir:
         angle = angle + 0.1
-        if angle >= 95.0:
+        if angle >= 111:
             dir = 0
             led1.toggle()
     else:
         angle = angle - 0.1
-        if angle <= 85.0:
+        if angle <= 91:
             dir = 1
             led1.toggle()
     # 获取舵机角度对应占空比
