@@ -34,6 +34,7 @@ CCD 初始化，调用案例：
 # print(ccd_data2)
 """
 from Get_CCD import read_ccd_data, process_ccd_data, map_error_to_servo_angle
+from CCD_Tool import *
 
 # 调用 TSL1401 模块获取 CCD 实例
 # 参数是采集周期 调用多少次 capture/read 更新一次数据
@@ -160,9 +161,16 @@ while True:
         # 定时器关断标志
         ticker_flag = False
 
-    # 屏幕显示
-    lcd.str24(0, 0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
-    lcd.str24(0, 25, "angle={:>.2f}.".format(angle), 0xFFFF)
+        # 屏幕显示
+        lcd.str24(0, 0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
+        lcd.str24(0, 25, "angle={:>.2f}.".format(angle), 0xFFFF)
+        lcd.str24(0, 50, "Cross={:>.2f}.".format(detect_roundabout(ccd_data1)), 0xFFFF)
+        lcd.str24(0, 75, "Shizi={:>.2f}.".format(detect_intersection(ccd_data1)), 0xFFFF)
+        lcd.str24(0, 100, "ZhangAiWu={:>.2f}.".format(detect_obstacle(ccd_data1)), 0xFFFF)
+
+
+
+
     # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
     #lcd.wave(0, 0, 128, 64, ccd_data1, max=255)
     #lcd.wave(0, 64, 128, 64, ccd_data2, max=255)

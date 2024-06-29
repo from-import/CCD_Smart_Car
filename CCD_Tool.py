@@ -143,6 +143,7 @@ print("是否进入环岛:", is_roundabout)
 
 
 
+
 def detect_roundabout(binary_data):
     left_edge, right_edge = find_road_edges(binary_data)
 
@@ -155,9 +156,6 @@ def detect_roundabout(binary_data):
             return 1
 
     return 0
-
-
-
 
 """
 
@@ -198,3 +196,47 @@ def detect_intersection(binary_data):
             return 1
 
     return 0
+
+
+
+
+"""
+避障算法函数名: detect_obstacle(ccd_buf, obstacle_threshold)
+
+作用: 检测障碍物。
+
+参数:
+    ccd_buf (list): 包含128个元素的列表，表示CCD数据。每个元素为0（白色）或1（黑色）。
+    obstacle_threshold (int): 用于确定障碍物存在的阈值。
+
+返回值:
+    int: 如果检测到障碍物，则返回1；否则返回0。
+
+说明:
+    此函数遍历 `ccd_buf` 数组，寻找连续的黑色区域，其长度超过阈值 `obstacle_threshold`。
+    如果找到符合条件的障碍物区域，则返回1；否则返回0。
+
+示例用法:
+    ccd_buf = [0] * 128  # 初始化为128个零
+    obstacle_threshold = 5  # 障碍物长度阈值
+    obstacle_detected = detect_obstacle(ccd_buf, obstacle_threshold)
+    print("是否检测到障碍物:", obstacle_detected)
+    
+"""
+def detect_obstacle(ccd_buf, obstacle_threshold = 10):
+    obstacle_detected = 0
+    black_count = 0
+
+    for pixel in ccd_buf:
+        if pixel == 1:
+            black_count += 1
+        else:
+            if black_count >= obstacle_threshold:
+                obstacle_detected = 1
+                break
+            black_count = 0
+
+    if black_count >= obstacle_threshold:
+        obstacle_detected = 1
+
+    return obstacle_detected
