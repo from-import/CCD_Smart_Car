@@ -240,3 +240,94 @@ def detect_obstacle(ccd_buf, obstacle_threshold = 10):
         obstacle_detected = 1
 
     return obstacle_detected
+
+
+def detect_obstacle(line):
+    """
+    避障算法函数名: detect_obstacle(line)
+
+    作用: 检测障碍物。
+
+    参数:
+        line (list): 包含128个元素的列表，表示CCD数据。每个元素为0（白色）或1（黑色）。
+
+    返回值:
+        int: 如果检测到障碍物，则返回1；否则返回0。
+
+    说明:
+        此函数模拟C语言中的障碍物检测函数。首先进行连续下降的黑色区域检测，然后根据一定的条件判断是否存在障碍物。
+        如果符合障碍物条件，则设置全局变量，并根据情况进行其他相关处理。
+        最后返回1表示检测到障碍物，返回0表示未检测到障碍物。
+
+    示例用法:
+        ccd_data = [0] * 128  # 初始化为128个零
+        obstacle_detected = detect_obstacle(ccd_data)
+        print("是否检测到障碍物:", obstacle_detected)
+    """
+    global obstacle, offset, LeftBlack, RightBlack, CCD3_width, obstacle_flag, obstacle_conut, Start
+    global Obstacle_Switch, mid_black, zhijiao, black_area, podao, LxQ4, RxQ4, L_Obstacle, R_Obstacle
+
+    obstacle_flag_down = 0
+    obstacle_flag_up = 0
+    obstacle_width = 0
+    obstacle_axis = 0
+    CCD3_width = RightBlack2 - LeftBlack2  # 需要根据具体情况调整
+
+    for i in range(24, 103):
+        if (line[i] - line[i + 3]) >= Threshold2:
+            obstacle_flag_down += 1
+            if obstacle_flag_down >= 3:
+                obstacle_down = i
+                LxQ4 = 1
+                for j in range(obstacle_down, 100):
+                    if (line[j + 3] - line[j]) >= Threshold2:
+                        obstacle_flag_up += 1
+                        if obstacle_flag_up >= 3:
+                            obstacle_up = j
+                            obstacle_width = obstacle_up - obstacle_down
+                            obstacle_axis = (obstacle_up + obstacle_down) // 2
+                            if obstacle_down > 64 and obstacle_up > 64:
+                                L_Obstacle = 0
+                                R_Obstacle = 1
+                            elif obstacle_down < 64 and obstacle_up < 64:
+                                L_Obstacle = 1
+                                R_Obstacle = 0
+                            RxQ4 = 1
+                            break
+                break
+        else:
+            obstacle_flag_down = 0
+
+    if obstacle_flag_up < 3:
+        obstacle_up = 0
+    if obstacle_flag_down < 3:
+        obstacle_down = 0
+
+    if Obstacle_Switch and mid_black == 0 and zhijiao == 0 and black_area == 0 and podao == 0 and Start != 0:
+        if 10 <= obstacle_width <= 18 and abs(offset) <= 15 and 10 <= CCD3_width <= 45:
+            obstacle_flag += 1
+        else:
+            obstacle_flag = 0
+
+        if obstacle_flag >= obstacle_conut:
+            obstacle = 1
+
+        if obstacle:
+            if L_Obstacle:
+                LeftBlack = 90
+            else:
+                RightBlack = 43
+            # Beep()  # 某种声音信号处理函数
+
+    else:
+        # NoBeep()  # 某种非障碍状态下的声音信号处理函数
+        pass
+
+    # 出障碍处理
+    if obstacle == 1:
+        S_bar += CarSpeed
+        if S_bar >= S_bar_cnt:
+            S_bar = 0
+            obstacle = 0
+
+    return 1 if obstacle else 0
