@@ -19,13 +19,14 @@ def set_servo_angle(pwm_servo, offset):
     offset: 偏差值，由Get_CCD计算返回。
     """
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    Tips: 偏差计算对应角度
+    Tips: 偏差计算对应角度(左负右正)
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
     # 转变为三次曲线
     if (offset > 0):
         nature = 1
     else:
         nature = 0
+    """三次函数
     a = 0.02
     b = 0.05
     c = 0.9
@@ -35,6 +36,23 @@ def set_servo_angle(pwm_servo, offset):
         offset = offset * 16 / (a * pow(15, 3) + b * pow(15, 2) + c * pow(15, 1))
     else:
         offset = offset * 13 / (a * pow(15, 3) + b * pow(15, 2) + c * pow(15, 1))
+    """
+    """分段函数"""
+    a = 11.6015
+    offset = abs(offset)
+    if 0 <= offset < 5:
+        offset = 1.6015*offset
+    elif 5 <= offset < 10:
+        offset = 5.1015*offset + -19.1986
+    elif 10 <= offset:
+        offset = a*offset + -85.1935
+
+    ######
+    if nature == 1:
+        offset = -offset
+        offset = offset * 13 / (a*17 + -85.1935)
+    else:
+        offset = offset * 16 / (a*17 + -85.1935)
     # 图像可接受误差（无限大时为64）15（max0ffset）——》(nature = 1,16;else,13)
 
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -62,3 +80,5 @@ def set_servo_angle(pwm_servo, offset):
 
 # 案例
 # set_servo_angle(90)
+
+

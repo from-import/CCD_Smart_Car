@@ -1,6 +1,9 @@
 from machine import *
 from seekfree import TSL1401
 
+T_old = 400
+
+
 def read_ccd_data(ccd):
     """
     读取 CCD 数据并进行滤波和二值化处理。
@@ -41,7 +44,8 @@ def read_ccd_data(ccd):
         filtered_data.append(data[-1])
         return filtered_data
 
-    def binary_thresholding(data, all_black_difference_value=10, T_old=128):
+    def binary_thresholding(data, all_black_difference_value=300):
+        global T_old
         """
         二值化处理函数，对 CCD 数据进行二值化处理。
 
@@ -57,6 +61,7 @@ def read_ccd_data(ccd):
         # 找出数据列表中的最大值和最小值，确定数据的动态范围。
         max_val = max(data)
         min_val = min(data)
+        #print(error)
 
         # 第二步：判断最大值和最小值的偏差是否大于全黑时的偏差值
         # 如果差值小于或等于这个偏差值，则认为数据是全黑的
@@ -96,6 +101,7 @@ def read_ccd_data(ccd):
                 break
 
             T = T_last
+            T_old = T
 
         # 返回二值化后的数据
         return [0 if x <= T_last else 1 for x in data]
@@ -112,46 +118,8 @@ def read_ccd_data(ccd):
     binary_ccd1 = binary_thresholding(filtered_ccd1)
     binary_ccd2 = binary_thresholding(filtered_ccd2)
 
-
     return binary_ccd1, binary_ccd2
 
-
-def calculate_error_and_kp(left_black, right_black):
-    """
-    计算偏差值和动态 Kp 值。
-
-    参数:
-    left_black (int): 左侧黑点位置。
-    right_black (int): 右侧黑点位置。
-
-    返回:
-    tuple: 包含偏差值 (Error) 和动态 Kp 值。
-    """
-    # 计算偏差值
-    error = left_black - (128 - right_black)
-
-    # 计算动态 Kp 值
-    kp = 0.05 * abs(error)
-
-    return error, kp
-
-
-def adjust_steering(error):
-    """
-    调整舵机转弯方向和速度。
-
-    参数:
-    error (int): 偏差值。
-
-    返回:
-    str: 舵机调整方向和速度信息。
-    """
-    if error < -10:
-        return "舵机向左转弯"
-    elif error > 10:
-        return "舵机向右转弯"
-    else:
-        return "舵机直行，不转弯"
 
 def map_error_to_servo_angle(error, mid_angle=100, left_max_angle=125, right_max_angle=80):
     """
@@ -205,98 +173,7 @@ def process_ccd_data(ccd_data):
 
     error, kp = calculate_error_and_kp(left_black, right_black)
     steering_adjustment = adjust_steering(error)
-    print(super_error)
+    #print(super_error)
 
     return super_error
 
-
-
-
-"""
-函数名: get_black_string_2(ccd)
-
-作用: 从传感器数据中检测黑色区域的边界。
-
-参数:
-    ccd (list): 包含128个元素的列表，表示传感器数据。
-
-说明:
-    此函数根据传感器数据 `ccd`，扫描左右两侧的黑色区域边界，并更新全局变量 `LeftBlack2` 和 `RightBlack2`。
-    使用动态阈值 `Threshold` 进行边界检测，当检测到连续的三个像素变化大于阈值时确定边界位置。
-
-示例用法:
-    ccd1_data = [0] * 128  # 初始化为128个零
-    get_black_string_2(ccd_data)
-    print("LeftBlack2:", LeftBlack2)
-    print("RightBlack2:", RightBlack2)
-"""
-
-
-def get_black_string_2(ccd):
-    global LeftBlack2, RightBlack2, Threshold, begin2
-
-    flag1 = 0  # 左边计数标记
-    flag3 = 0  # 右边计数标记
-    exl = 0  # 扫描宽度左
-    exr = 0  # 扫描宽度右
-
-
-    Threshold = auto_threshold(ccd1)
-
-    Q_LeftBlack2 = LeftBlack2  # 保存上一次的值
-    Q_RightBlack2 = RightBlack2  # 保存上一次的值
-
-    if begin2 == 6:
-        exr = 50
-    if begin2 == 121:
-        exl = 50
-
-    LxQ3 = 0
-    RxQ3 = 0
-
-    # 扫描左边
-    for i in range(begin2, 3 + exl, -1):
-        if (ccd[i] - ccd[i - 3]) >= Threshold:  # 利用阈值找到跳变点
-            flag1 += 1
-            if flag1 >= 3:
-                LeftBlack2 = i
-                LxQ3 = 1
-                break
-        else:
-            flag1 = 0
-
-    # 扫描右边
-    for i in range(begin2, 118 - exr):
-        if (ccd[i] - ccd[i + 3]) >= Threshold:
-            flag3 += 1
-            if flag3 >= 3:
-                RightBlack2 = i
-                RxQ3 = 1
-                break
-        else:
-            flag3 = 0
-
-    # 右边缺少黑色
-    if flag3 < 3:
-        if begin2 > 6:
-            RightBlack2 = 127  # 无黑色
-        else:
-            RightBlack2 = 0  # 缺少黑色并保持
-            # CCD_lowview_switch = 1  # 打开低前瞻ccd（根据需要添加）
-
-    # 左边缺少黑色
-    if flag1 < 3:
-        if begin2 < 121:
-            LeftBlack2 = 0  # 白色
-        else:
-            LeftBlack2 = 127  # 缺少黑色并保持
-            # CCD_lowview_switch = 1  # 打开低前瞻ccd（根据需要添加）
-
-    # 重置下一个起始点
-    begin2 = (LeftBlack2 + RightBlack2) // 2
-
-    # 调整起始点
-    if begin2 < 30:  # 调整为6
-        begin2 = 6
-    if begin2 > 97:  # 调整为121
-        begin2 = 121

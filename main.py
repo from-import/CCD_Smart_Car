@@ -34,13 +34,12 @@ CCD 初始化，调用案例：
 # print(ccd_data2)
 """
 from Get_CCD import read_ccd_data, process_ccd_data, map_error_to_servo_angle
-from CCD_Tool import *
 
 # 调用 TSL1401 模块获取 CCD 实例
 # 参数是采集周期 调用多少次 capture/read 更新一次数据
 # 默认参数为 1 调整这个参数相当于调整曝光时间倍数
 # 这里填了 10 代表 10 次 capture/read 调用才会更新一次数据
-ccd = TSL1401(50)
+ccd = TSL1401(1)
 # 调整 CCD 的采样精度为 12bit
 ccd.set_resolution(TSL1401.RES_12BIT)
 
@@ -96,6 +95,11 @@ from Key_Data import Key_data
 # 实例化 KEY_HANDLER 模块 参数是按键扫描周期
 key = KEY_HANDLER(10)
 
+"""
+flag 初始化
+"""
+from Elements_CCD import Element_flag,CCD_Error,detect_intersection,detect_roundabout
+
 # 定时器数据建立
 ticker_flag = False
 # 时间延长标志（使用方法见encoder例程）
@@ -108,6 +112,8 @@ Tips: 调参部分
 ccdSuper = 0
 angle = 0
 key_4 = 0
+flag = 0
+Statu = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -115,13 +121,13 @@ Tips: 定时器内容编写
 
 # 定义一个回调函数（定时运行程序可以写在里面）
 def time_pit_handler(time):
-    global ticker_flag, ccdSuper, angle,key_4
+    global ticker_flag, ccdSuper, angle,key_4,Statu
     ticker_flag = True  # 否则它会新建一个局部变量
     """用户自己的软件代码"""
     # encoder
     control_encoder(encoder_l, encoder_r)
     # 电机运行程序
-    control_motor(motor_l, motor_r,key_4)
+    control_motor(motor_l, motor_r,key_4,ccdSuper,Statu)
     # 舵机运行程序
     angle = set_servo_angle(pwm_servo, ccdSuper)
 
@@ -146,34 +152,35 @@ while True:
         # 读取数据
         key_1, key_2, key_3, key_4 = Key_data(key)
         # 读取CCD值，存储到数组
-        ccd_data1, ccd_data2 = read_ccd_data(ccd)
+        ccd_data1,ccd_data2= read_ccd_data(ccd)
+        print(ccd_data1)
+
+        # flag
+        Statu = Element_flag(ccd_data1)
+        #flag = detect_roundabout(ccd_data1)
+        #flag = detect_intersection(ccd_data1)
+        #print(ccd_data1)
 
         # ccd1_error,
-        ccdSuper = process_ccd_data(ccd_data1)
+        ccdSuper = CCD_Error(ccd_data1)
         # ccdServoError1 = map_error_to_servo_angle(ccdError1)
         # print(ccdSuper)
 
         # PC端调试软件打印数据
         # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get()))
         # 无线打印ccd数据
-        wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)
+        #wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)
 
         # 定时器关断标志
         ticker_flag = False
 
-        # 屏幕显示
-        lcd.str24(0, 0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
-        lcd.str24(0, 25, "angle={:>.2f}.".format(angle), 0xFFFF)
-        lcd.str24(0, 50, "Cross={:>.2f}.".format(detect_roundabout(ccd_data1)), 0xFFFF)
-        lcd.str24(0, 75, "Shizi={:>.2f}.".format(detect_intersection(ccd_data1)), 0xFFFF)
-        lcd.str24(0, 100, "ZhangAiWu={:>.2f}.".format(detect_obstacle(ccd_data1)), 0xFFFF)
-
-
-
-
+    # 屏幕显示
+    lcd.str24(0, 0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
+    lcd.str24(0, 24, "angle={:>.2f}.".format(angle), 0xFFFF)
+    lcd.str24(0, 48, "flag={:>.2f}.".format(flag), 0xFFFF)
     # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
-    #lcd.wave(0, 0, 128, 64, ccd_data1, max=255)
-    #lcd.wave(0, 64, 128, 64, ccd_data2, max=255)
+    #lcd.wave(0, 0, 128, 64, ccd_data1, max=200)
+    #lcd.wave(0, 64, 128, 64, ccd_data2, max=200)
 
     # 按键跳出程序
     if end_switch.value() != end_state:
@@ -181,3 +188,4 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
+
