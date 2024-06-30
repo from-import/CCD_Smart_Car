@@ -14,6 +14,9 @@ def Key_data(key):
     if key_data[0]:
         key_1 = key_data[0]
         key.clear(1)
+    else:
+        key_1 = 0
+
     if key_data[1]:
         key_2 = key_data[1]
         key.clear(2)

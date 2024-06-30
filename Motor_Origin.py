@@ -7,7 +7,7 @@ import time
 """
 初始化全局变量
 """
-#PID
+# PID
 dutyL = 0
 dutyR = 0
 errorl = 0
@@ -21,24 +21,23 @@ dir_error_last = 0
 Dir_value = 0
 
 
-
-def control_encoder(encoder_l,encoder_r):
-    global encl_data,encr_data
+def control_encoder(encoder_l, encoder_r):
+    global encl_data, encr_data
     # 通过 get 接口读取数据
     encl_data = encoder_l.get()
     encr_data = encoder_r.get()
-    #计算小车的实际速度
-    #速度 = 脉冲数 * 周长 / 2368 * 周期
+    # 计算小车的实际速度
+    # 速度 = 脉冲数 * 周长 / 2368 * 周期
     encl_data = (1) * encl_data * 20.4 / (2355.2 * 0.02)
     encr_data = (1) * encr_data * 20.4 / (2355.2 * 0.02)
     Current_speed = (abs(encl_data) + abs(encr_data)) / 2
-    #print(encl_data,encr_data)
+    # print(encl_data,encr_data)
     gc.collect()
 
 
-def control_motor(motor_l, motor_r,Key_4,error,Statu):
+def control_motor(motor_l, motor_r, Key_4, error, Statu):
     global dutyL, dutyR, errorl, errorR, error_pre_lastl, error_pre_lastr, error_prel, error_prer
-    global encl_data,encr_data
+    global encl_data, encr_data, Stop
     """
     控制指定的电机，并根据占空比值改变电机转速和方向。
 
@@ -62,26 +61,28 @@ def control_motor(motor_l, motor_r,Key_4,error,Statu):
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 直线PID
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    #防止按键启动前的误差积累
+    # 防止按键启动前的误差积累
     if Key_4:
         # 左轮PID
         errorl = (int)(speed_L - encl_data) * (1)
-        dutyL = dutyL + (errorl - error_prel) * Motor_P + errorl * Motor_I + (errorl - 2 * (error_prel) + error_pre_lastl) * Motor_D
+        dutyL = dutyL + (errorl - error_prel) * Motor_P + errorl * Motor_I + (
+                    errorl - 2 * (error_prel) + error_pre_lastl) * Motor_D
         error_pre_lastl = error_prel
         error_prel = errorl
-        #print(errorl)
+        # print(errorl)
 
         # 右轮PID
         errorR = (int)(speed_R - encr_data) * (1)
-        dutyR = dutyR + (errorR - error_prer) * Motor_P + errorR * Motor_I + (errorR - 2 * (error_prer) + error_pre_lastr) * Motor_D
+        dutyR = dutyR + (errorR - error_prer) * Motor_P + errorR * Motor_I + (
+                    errorR - 2 * (error_prer) + error_pre_lastr) * Motor_D
         error_pre_lastr = error_prer
         error_prer = errorR
-        #print(errorR)
+        # print(errorR)
 
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 调参
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    global dir_error,dir_error_last,Dir_value
+    global dir_error, dir_error_last, Dir_value
     Dir_P = 0
     Dir_I = 1
     Dir_D = 0
@@ -104,10 +105,11 @@ def control_motor(motor_l, motor_r,Key_4,error,Statu):
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 按键启动,出线停车
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    if not Key_4:
-        dutyL = dutyR = 0
     if not Statu:
         dutyL = dutyR = 0
+    if not Key_4:
+        dutyL = dutyR = 0
+
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 限幅，运行
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -123,7 +125,7 @@ def control_motor(motor_l, motor_r,Key_4,error,Statu):
     # 更新电机PWM
     motor_l.duty(dutyL)
     motor_r.duty(dutyR)
-    #print(dutyL, dutyR)
+    # print(dutyL, dutyR)
     gc.collect()
 
 

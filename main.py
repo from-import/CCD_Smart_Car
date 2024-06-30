@@ -153,7 +153,7 @@ while True:
         key_1, key_2, key_3, key_4 = Key_data(key)
         # 读取CCD值，存储到数组
         ccd_data1,ccd_data2= read_ccd_data(ccd)
-        print(ccd_data1)
+        #print(ccd_data1)
 
         # flag
         Statu = Element_flag(ccd_data1)

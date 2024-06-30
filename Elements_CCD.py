@@ -6,14 +6,19 @@ flag = 0
 error = 0
 left_edge = None
 right_edge = None
+Stop = 0
 
 
 def Element_flag(data):
     global transitions, flag
     number = count_transitions(data)
     # 出线,斑马线
-    Statu = 0 if ((number == 0 and data[64] == 0) or number > 5) else 1
-    
+    Statu = 0 if (number == 0 and data[64] == 0) else 1
+    if number > 5:
+        Stop = 1
+    if Stop:
+        Statu = 0
+
     """
     if (number > 5):
         # 斑马线停车
@@ -22,20 +27,21 @@ def Element_flag(data):
         # 入环
         flag = 3
     """
-    
+
     return Statu
 
 
-#计算跳变点数
+# 计算跳变点数
 def count_transitions(data):
     global transitions
-    #合计跳变数
+    # 合计跳变数
     transitions = 0
     for i in range(1, len(data)):
         if data[i] != data[i - 1]:
             transitions += 1
 
     return transitions
+
 
 """
 CCD_Error(binary_data) : 查找道路左侧和右侧的边界位置，并计算中线位置。
@@ -46,8 +52,10 @@ binary_data (list): 二值化后的CCD数据，1表示道路，0表示非道路�
 返回:
 误差值
 """
+
+
 def CCD_Error(binary_data):
-    global error,left_edge ,right_edge
+    global error, left_edge, right_edge
     left_edge = None
     right_edge = None
 
@@ -57,14 +65,15 @@ def CCD_Error(binary_data):
         if binary_data[i] == 0 and left_edge is not None:
             right_edge = i - 1
             break
-    #补线
-    if left_edge == None :
+    # 补线
+    if left_edge == None:
         left_edge = 1
-    if right_edge == None :
+    if right_edge == None:
         right_edge = 128
     error = int(0.5 * (left_edge + right_edge)) - 64
 
     return error
+
 
 """
 
@@ -93,11 +102,10 @@ print("是否进入环岛:", is_roundabout)
 """
 
 
-
 def detect_roundabout(binary_data):
-    global error,left_edge ,right_edge
+    global error, left_edge, right_edge
     middle_error = error
-    
+
     if left_edge is not None and right_edge is not None:
         road_width = right_edge - left_edge
 
@@ -106,8 +114,6 @@ def detect_roundabout(binary_data):
             return 1
 
     return 0
-
-
 
 
 """
@@ -138,7 +144,7 @@ print("是否进入十字路口:", is_intersection)
 
 
 def detect_intersection(binary_data):
-    global error,left_edge ,right_edge
+    global error, left_edge, right_edge
 
     if left_edge is not None and right_edge is not None:
         road_width = right_edge - left_edge
@@ -149,4 +155,5 @@ def detect_intersection(binary_data):
             return 1
 
     return 0
+
 
