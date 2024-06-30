@@ -16,7 +16,6 @@ prompt
 SMGG.Tips:
 main主要进行初始化，后面的算法处理单独封装，以达到可读，参数调整方便的效果
 """
-
 # 核心板上 C4 是 LED
 led1 = Pin('C4', Pin.OUT, pull=Pin.PULL_UP_47K, value=True)
 # 开发板上的 C19 是拨码开关
@@ -28,25 +27,21 @@ Tips: 初始化部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 
 """
-CCD 初始化，调用案例：
+CCD 初始化
+调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
+默认参数为 1 调整这个参数相当于调整曝光时间倍数,这里填了 10 代表 10 次 capture/read 调用才会更新一次数据
+
+调用案例：
 # ccd_data1, ccd_data2 = read_ccd_data(ccd)
 # print(ccd_data1)
 # print(ccd_data2)
 """
 from Get_CCD import read_ccd_data, process_ccd_data, map_error_to_servo_angle
-
-# 调用 TSL1401 模块获取 CCD 实例
-# 参数是采集周期 调用多少次 capture/read 更新一次数据
-# 默认参数为 1 调整这个参数相当于调整曝光时间倍数
-# 这里填了 10 代表 10 次 capture/read 调用才会更新一次数据
-ccd = TSL1401(1)
-# 调整 CCD 的采样精度为 12bit
-ccd.set_resolution(TSL1401.RES_12BIT)
-
-# 实例化 WIRELESS_UART 模块 参数是波特率
-wireless = WIRELESS_UART(460800)
-# 测试无线正常
-wireless.send_str("Hello World.\r\n")
+from CCD_Tool import *
+ccd = TSL1401(1) # 调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
+ccd.set_resolution(TSL1401.RES_12BIT)  # 调整 CCD 的采样精度为 12bit
+wireless = WIRELESS_UART(460800)  # 实例化 WIRELESS_UART 模块 参数是波特率
+wireless.send_str("Hello World.\r\n") # 测试无线正常
 time.sleep_ms(500)
 
 """
@@ -55,7 +50,6 @@ time.sleep_ms(500)
 control_motor(motor_l, motor_r)  # 传入左右电机控制对象
 """
 from Motor_Origin import control_motor
-
 motor_l = MOTOR_CONTROLLER(MOTOR_CONTROLLER.PWM_C25_DIR_C27, 13000, duty=0, invert=False)
 motor_r = MOTOR_CONTROLLER(MOTOR_CONTROLLER.PWM_C24_DIR_C26, 13000, duty=0, invert=True)
 
@@ -64,7 +58,6 @@ Encoder 初始化
 control_encoder(encoder_l, encoder_r)
 """
 from Motor_Origin import control_encoder
-
 encoder_l = encoder("D0", "D1", False)
 encoder_r = encoder("D2", "D3", True)
 
@@ -73,75 +66,55 @@ encoder_r = encoder("D2", "D3", True)
 set_servo_angle(pwm_servo)
 """
 from Motor_Servo import set_servo_angle, duty_angle
-
-# 初始化舵机执行
-duty_servo = int(duty_angle(101.0))
-# 学习板上舵机接口为 C20
-# 调用 machine 库的 PWM 类实例化一个 PWM 输出对象
-pwm_servo = PWM("C20", 300, duty_u16=duty_servo)
+duty_servo = int(duty_angle(101.0))  # 初始化舵机打角 学习板上舵机接口为 C20
+pwm_servo = PWM("C20", 300, duty_u16=duty_servo)  # 调用 machine 库的 PWM 类实例化一个 PWM 输出对象
 
 """
 Screen 初始化
 init_Screen()
 """
 from Screen import init_Screen
-
 lcd = init_Screen()
 
 """
 Key 初始化
 """
 from Key_Data import Key_data
-# 实例化 KEY_HANDLER 模块 参数是按键扫描周期
-key = KEY_HANDLER(10)
+key = KEY_HANDLER(10)  # 实例化 KEY_HANDLER 模块 参数是按键扫描周期
 
 """
 flag 初始化
 """
 from Elements_CCD import Element_flag,CCD_Error,detect_intersection,detect_roundabout
-
-# 定时器数据建立
-ticker_flag = False
-# 时间延长标志（使用方法见encoder例程）
-ticker_count = 0
+ticker_flag = False  # 定时器数据建立
+ticker_count = 0  # 时间延长标志（使用方法见encoder例程）
 
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 调参部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 # 初始化 ccdSuper 和 angle
-ccdSuper = 0
-angle = 0
-key_4 = 0
-flag = 0
-Statu = 0
+ccdSuper = angle = key_4 = flag = Statu = 0
+
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+pit1 = ticker(1)  # 选定1号定时器:关联采集接口,最少一个,最多八个
+pit1.capture_list(encoder_l, encoder_r, ccd, key)  # 编码器关联,ccd关联
+pit1.callback(time_pit_handler)  # 关联 Python 回调函数
+pit1.start(10)  # 启动 ticker 实例 参数是触发周期 单位是毫秒
 
 
 # 定义一个回调函数（定时运行程序可以写在里面）
 def time_pit_handler(time):
     global ticker_flag, ccdSuper, angle,key_4,Statu
     ticker_flag = True  # 否则它会新建一个局部变量
-    """用户自己的软件代码"""
+
     # encoder
     control_encoder(encoder_l, encoder_r)
     # 电机运行程序
     control_motor(motor_l, motor_r,key_4,ccdSuper,Statu)
     # 舵机运行程序
     angle = set_servo_angle(pwm_servo, ccdSuper)
-
-
-# 选定1号定时器
-pit1 = ticker(1)
-
-# 关联采集接口 最少一个 最多八个
-# 编码器关联,ccd关联
-pit1.capture_list(encoder_l, encoder_r, ccd, key)
-# 关联 Python 回调函数
-pit1.callback(time_pit_handler)
-# 启动 ticker 实例 参数是触发周期 单位是毫秒
-pit1.start(10)
 
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 主函数部分
@@ -161,8 +134,8 @@ while True:
         #flag = detect_intersection(ccd_data1)
         #print(ccd_data1)
 
-        # ccd1_error,
-        ccdSuper = CCD_Error(ccd_data1)
+        left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)
+        ccdSuper = 64 - mid_line
         # ccdServoError1 = map_error_to_servo_angle(ccdError1)
         # print(ccdSuper)
 
