@@ -26,20 +26,25 @@ def find_road_edges(ccd_data, lastMiddlePosition=None):
             right_edge = i - 1  # 找到连续两个0，作为右边界，避免误差影响
             break
 
-    # 如果没有检测到左边界或右边界
-    if left_edge is None:
-        left_edge = 0  # 假设左边界在最左边
-    if right_edge is None:
-        right_edge = len(ccd_data) - 1  # 假设右边界在最右边
+    # 如果没有检测到左边界或右边界,启用丢单线算法
+    if (left_edge is None) and (right_edge is not None):
+        mid_line = right_edge - 25  # 仅检测到右边界
 
-    # 计算中线位置
-    mid_line = (left_edge + right_edge) // 2
+    if (right_edge is None) and (left_edge is not None):
+        mid_line = left_edge + 25  # 仅检测到左边界
+
+    if (right_edge is not None) and (left_edge is not None):
+        mid_line = (left_edge + right_edge) // 2  # 检测到左右边界
+
+    if (left_edge is None) and (right_edge is None):
+        mid_line = 64 if (lastMiddlePosition is None) else lastMiddlePosition  # 未检测到左右边界
 
     # 根据上一次的中线位置调整当前中线位置
     if lastMiddlePosition is not None:
         mid_line = (mid_line + lastMiddlePosition) // 2
 
     return left_edge, right_edge, mid_line  # 返回左边界、右边界和中线位置的元组
+
 
 """
 函数名: ImageCreate
@@ -60,6 +65,8 @@ def find_road_edges(ccd_data, lastMiddlePosition=None):
 left = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ImageCreate(left, "left")
 """
+
+
 def ImageCreate(ccd_data, name):
     left_edge, right_edge, mid_line = find_road_edges(ccd_data, None)
     plt.figure(figsize=(8, 6))
