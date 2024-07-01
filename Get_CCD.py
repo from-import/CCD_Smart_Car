@@ -3,18 +3,15 @@ from seekfree import TSL1401
 
 T_old = 400
 
+"""
+函数名：read_ccd_data
+函数作用：读取 CCD 数据并进行滤波和二值化处理。
 
+参数: ccd (TSL1401): 已初始化的 CCD 实例。
+
+返回: tuple: 包含处理后的 CCD 数据1 和 CCD 数据2 及其二值化结果。
+"""
 def read_ccd_data(ccd):
-    """
-    读取 CCD 数据并进行滤波和二值化处理。
-
-    参数:
-    ccd (TSL1401): 已初始化的 CCD 实例。
-
-    返回:
-    tuple: 包含处理后的 CCD 数据1 和 CCD 数据2 及其二值化结果。
-    """
-
     def get_mid(a, b, c):
         # 获取三个值中的中间值。
         x = 0
@@ -44,19 +41,20 @@ def read_ccd_data(ccd):
         filtered_data.append(data[-1])
         return filtered_data
 
+    """
+    二值化处理函数，对 CCD 数据进行二值化处理。
+
+    参数:
+    data (list): CCD 数据列表。
+    all_black_difference_value (float): 全黑时的偏差值，用于判断阈值。
+    T_old (float): 上一次的阈值，用于全黑情况下的处理。
+
+    返回:
+    list: 二值化后的 CCD 数据。
+    """
     def binary_thresholding(data, all_black_difference_value=300):
         global T_old
-        """
-        二值化处理函数，对 CCD 数据进行二值化处理。
 
-        参数:
-        data (list): CCD 数据列表。
-        all_black_difference_value (float): 全黑时的偏差值，用于判断阈值。
-        T_old (float): 上一次的阈值，用于全黑情况下的处理。
-
-        返回:
-        list: 二值化后的 CCD 数据。
-        """
         # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
         # 找出数据列表中的最大值和最小值，确定数据的动态范围。
         max_val = max(data)
@@ -121,19 +119,20 @@ def read_ccd_data(ccd):
     return binary_ccd1, binary_ccd2
 
 
+"""
+函数名：map_error_to_servo_angle
+函数作用：将偏差值映射到舵机角度。
+
+参数:
+error (int): 偏差值。
+mid_angle (int): 舵机中值角度。
+left_max_angle (int): 舵机左转最大角度。
+right_max_angle (int): 舵机右转最大角度。
+
+返回: float: 舵机角度。
+"""
 def map_error_to_servo_angle(error, mid_angle=100, left_max_angle=125, right_max_angle=80):
-    """
-    将偏差值映射到舵机角度。
 
-    参数:
-    error (int): 偏差值。
-    mid_angle (int): 舵机中值角度。
-    left_max_angle (int): 舵机左转最大角度。
-    right_max_angle (int): 舵机右转最大角度。
-
-    返回:
-    float: 舵机角度。
-    """
     if error < 0:
         # 偏差为负数时（左转），将 error 从 [-127, 0] 映射到 [mid_angle, left_max_angle]
         angle = mid_angle + (error / -127) * (left_max_angle - mid_angle)
@@ -142,23 +141,23 @@ def map_error_to_servo_angle(error, mid_angle=100, left_max_angle=125, right_max
         angle = mid_angle + (error / 127) * (right_max_angle - mid_angle)
     return angle
 
+"""
+函数名：process_ccd_data
+作用：处理 CCD 数据以识别赛道类型并调整舵机。
+
+参数: ccd_data (list): CCD 数据列表。
+
+返回: dict: 包含偏差值、Kp 值和调整方向信息。
+
+在直道，偏差（Error）会变得很小，绝对值小于10，控制舵机直行，不转弯。
+十字路口都是与270°的弯道连接在一起的。由于十字路口没有两端的黑色引导线，通过CCD采集的数据分析，
+计算进入前的3次偏差位置，求出它的斜率，再通过斜率计算出智能小车在十字路口上舵机转弯大小，从而保证小车顺利通过十字路口。
+紧跟着就进入270°的弯道。为了防止舵机误判，当上一个偏差与本次的偏差超过某一个值时，保持上一次的偏差，这样就能顺利平滑通过弯道了。
+从CCD采集回来小S弯道的数据来看，由于小S弯道的位置偏差较小，而且采用一次元函数动态Kp的方法来控制舵机转弯，
+Kp的值可以通过这些小偏差的改变而改变，即Kp=0.05×偏差。因此，可以保证智能车以较高的速度完美通过小S弯道。
+"""
 def process_ccd_data(ccd_data):
-    """
-    处理 CCD 数据以识别赛道类型并调整舵机。
 
-    参数:
-    ccd_data (list): CCD 数据列表。
-
-    返回:
-    dict: 包含偏差值、Kp 值和调整方向信息。
-
-    在直道，偏差（Error）会变得很小，绝对值小于10，控制舵机直行，不转弯。
-    十字路口都是与270°的弯道连接在一起的。由于十字路口没有两端的黑色引导线，通过CCD采集的数据分析，
-    计算进入前的3次偏差位置，求出它的斜率，再通过斜率计算出智能小车在十字路口上舵机转弯大小，从而保证小车顺利通过十字路口。
-    紧跟着就进入270°的弯道。为了防止舵机误判，当上一个偏差与本次的偏差超过某一个值时，保持上一次的偏差，这样就能顺利平滑通过弯道了。
-    从CCD采集回来小S弯道的数据来看，由于小S弯道的位置偏差较小，而且采用一次元函数动态Kp的方法来控制舵机转弯，
-    Kp的值可以通过这些小偏差的改变而改变，即Kp=0.05×偏差。因此，可以保证智能车以较高的速度完美通过小S弯道。
-    """
     left_black = ccd_data.index(max(ccd_data[:64]))  # 找到左侧黑点位置
     right_black = ccd_data.index(max(ccd_data[64:])) + 64  # 找到右侧黑点位置
 
@@ -177,3 +176,38 @@ def process_ccd_data(ccd_data):
 
     return super_error
 
+"""
+函数名：adjust_exposure_time
+函数作用：根据反馈的曝光量调整 CCD 的曝光时间。
+
+参数:
+ccd (TSL1401): 已初始化的 CCD 实例。
+target_exposure (float): 设定的目标曝光量。
+kp (float): 调节器的比例增益。
+
+返回: float: 调整后的曝光时间。
+"""
+def adjust_exposure_time(ccd, target_exposure=0.5, kp=0.1):
+    # 曝光时间初始值
+    exposure_time = 100
+
+    # 读取当前 CCD 数据并计算其平均值作为实际曝光量
+    ccd_data = ccd.get(0)
+    actual_exposure = sum(ccd_data) / len(ccd_data)
+
+    # 计算曝光量偏差
+    exposure_error = target_exposure - actual_exposure
+
+    # 调整曝光时间
+    exposure_time = exposure_time + kp * exposure_error
+
+    # 限制曝光时间在合理范围内
+    if exposure_time < 10:
+        exposure_time = 10
+    elif exposure_time > 1000:
+        exposure_time = 1000
+
+    # 设置新的曝光时间
+    ccd.set_exposure_time(exposure_time)
+
+    return exposure_time
