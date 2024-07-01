@@ -41,7 +41,25 @@ def find_road_edges(ccd_data, lastMiddlePosition=None):
 
     return left_edge, right_edge, mid_line  # 返回左边界、右边界和中线位置的元组
 
+"""
+函数名: ImageCreate
+作用: 绘制CCD数据图像并在图中标注中线位置和参考线。
 
+参数:
+    ccd_data (list): 包含CCD数据的列表，其中1表示道路，0表示非道路。
+    name (str): 图像的名称标签，用于图例和标题。
+    
+说明:
+此函数首先调用 `find_road_edges` 函数获取道路的左侧和右侧边界位置，并计算出中线位置。
+然后使用Matplotlib库绘制包含以下信息的图像：
+- CCD数据曲线（红色）
+- 中线位置的竖直线（蓝色实线）
+- x=64处的参考竖直线（黑色虚线）
+
+调用案例:
+left = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ImageCreate(left, "left")
+"""
 def ImageCreate(ccd_data, name):
     left_edge, right_edge, mid_line = find_road_edges(ccd_data, None)
     plt.figure(figsize=(8, 6))
