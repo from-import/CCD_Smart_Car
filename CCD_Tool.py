@@ -16,40 +16,41 @@ tuple: 包含左侧边界索引(left_edge)、右侧边界索引(right_edge)和�
 
 调用案例: left, right, middle = find_road_edges(ccd_data, lastMiddlePosition)
 """
-def find_road_edges(ccd_data, lastMiddlePosition=None):
-    left_edge = None  # 左边界位置初始化为 None
-    right_edge = None  # 右边界位置初始化为 None
-    window_size = 5  # 窗口大小，用于平滑数据
-    smoothed_data = []
+def find_road_edges(ccd_data, lastMiddlePosition=64):
+    if lastMiddlePosition is None:
+        lastMiddlePosition = 64  # 设置默认值
 
-    # 使用滑动窗口平均值平滑数据
-    for i in range(len(ccd_data)):
-        window_start = max(0, i - window_size // 2)
-        window_end = min(len(ccd_data), i + window_size // 2 + 1)
-        window_average = sum(ccd_data[window_start:window_end]) / (window_end - window_start)
-        smoothed_data.append(round(window_average))
+    start = lastMiddlePosition
 
-    # 检测连续两个相同值的元素，确定左边界和右边界
-    for i in range(len(smoothed_data) - 1):
-        if smoothed_data[i] == 1 and smoothed_data[i + 1] == 1 and left_edge is None:
-            left_edge = i  # 找到连续两个1，作为左边界
-        if smoothed_data[i] == 0 and smoothed_data[i + 1] == 0 and left_edge is not None:
-            right_edge = i - 1  # 找到连续两个0，作为右边界
-            break
+    # 初始化 left_edge 和 right_edge
+    left_edge = start
+    right_edge = start
+    print(left_edge)
+    print(right_edge)
+
+    # 向左扫描
+    while left_edge > 0 and ccd_data[left_edge] == 1:
+        left_edge -= 1
+
+    # 向右扫描
+    while right_edge < len(ccd_data) - 1 and ccd_data[right_edge] == 1:
+        right_edge += 1
+
+    # 确保扫描结果有效
+    if left_edge == start and ccd_data[left_edge] == 1:
+        left_edge = 0
+    if right_edge == start and ccd_data[right_edge] == 1:
+        right_edge = len(ccd_data) - 1
 
     # 如果没有检测到左边界或右边界,启用丢单线算法
-    if (left_edge is None) and (right_edge is not None):
+    if (left_edge == start or left_edge == 0) and right_edge != start:
         mid_line = right_edge - 25  # 仅检测到右边界
-    elif (right_edge is None) and (left_edge is not None):
+    elif (right_edge == start or right_edge == len(ccd_data) - 1) and left_edge != start:
         mid_line = left_edge + 25  # 仅检测到左边界
-    elif (right_edge is not None) and (left_edge is not None):
+    elif right_edge != start and left_edge != start:
         mid_line = (left_edge + right_edge) // 2  # 检测到左右边界
     else:
-        mid_line = 64 if (lastMiddlePosition is None) else lastMiddlePosition  # 未检测到左右边界
-
-    # 根据上一次的中线位置调整当前中线位置
-    if lastMiddlePosition is not None:
-        mid_line = (mid_line + lastMiddlePosition) // 2
+        mid_line = 64 if lastMiddlePosition is None else lastMiddlePosition  # 未检测到左右边界
 
     return left_edge, right_edge, mid_line  # 返回左边界、右边界和中线位置的元组
 
