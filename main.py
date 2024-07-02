@@ -1,5 +1,3 @@
-from typing import Any
-
 from machine import *
 from smartcar import *
 from seekfree import *
@@ -38,7 +36,7 @@ CCD 初始化
 # print(ccd_data1)
 # print(ccd_data2)
 """
-from Get_CCD import read_ccd_data, process_ccd_data, map_error_to_servo_angle
+from Get_CCD import *
 from CCD_Tool import *
 from Find_Circle import *
 
@@ -87,14 +85,13 @@ lcd = init_Screen()
 """
 Key 初始化
 """
-from Key_Data import Key_data
+from seekfree import KEY_HANDLER
 
 key = KEY_HANDLER(10)  # 实例化 KEY_HANDLER 模块 参数是按键扫描周期
 
 """
 flag 初始化
 """
-from Elements_CCD import Element_flag, CCD_Error, detect_intersection, detect_roundabout
 
 ticker_flag = False  # 定时器数据建立
 ticker_count = 0  # 时间延长标志（使用方法见encoder例程）
@@ -104,14 +101,10 @@ Tips: 调参部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 # 初始化 ccdSuper 和 angle
 ccdSuper = angle = key_4 = Key_1 = Key_2 = flag = Statu = isCircleNow = mid_line = 0
-left_edge = right_edge = 0
+left_edge = right_edge = isCircleNow = leftOrRight = goCircle = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-pit1 = ticker(1)  # 选定1号定时器:关联采集接口,最少一个,最多八个
-pit1.capture_list(encoder_l, encoder_r, ccd, key)  # 编码器关联,ccd关联
-pit1.callback(time_pit_handler)  # 关联 Python 回调函数
-pit1.start(10)  # 启动 ticker 实例 参数是触发周期 单位是毫秒
 
 
 # 定义一个回调函数（定时运行程序可以写在里面）
@@ -127,6 +120,11 @@ def time_pit_handler(time):
     angle = set_servo_angle(pwm_servo, ccdSuper)
 
 
+pit1 = ticker(1)  # 选定1号定时器:关联采集接口,最少一个,最多八个
+pit1.capture_list(encoder_l, encoder_r, ccd, key)  # 编码器关联,ccd关联
+pit1.callback(time_pit_handler)  # 关联 Python 回调函数
+pit1.start(10)  # 启动 ticker 实例 参数是触发周期 单位是毫秒
+
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 主函数部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -134,34 +132,45 @@ Tips: 主函数部分
 ccdAllData = []
 while True:
     if ticker_flag:
-        key_1, key_2, key_3, key_4 = Key_data(key)  # 读取数据
+        key_data = key.get()  # 获取按键数据
+        key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
+
+        if key_data[0]:
+            print(f"ccd_data1: {ccd_data1}")
+            ccdAllData.append(ccd_data1)
+            key.clear(1)
+
+        if key_data[1]:
+            print("ccdAllData : \n")
+            print(ccdAllData)
+            key.clear(2)
+
+        if key_data[2]:
+            print("key3 = {:>6d}.".format(key_data[2]))
+            key.clear(3)
+
+        if key_data[3]:
+            key_4 = 1  # 按键按下后将 key_4 设置为 1
+
         ccd_data1, ccd_data2 = read_ccd_data(ccd)  # 读取CCD值，存储到数组
-        Statu = Element_flag(ccd_data1)  # flag
 
         left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)
 
         ccdSuper = 64 - mid_line
         isCircleNow, leftOrRight = is_circle(ccd_data1)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
-
         if isCircleNow:
+            checkCircle = 1
+        if checkCircle:
             goCircle = Go_circle_now(ccd_data1, roadWidth)
             if goCircle:
                 if leftOrRight == "left":
-                    set_servo_angle(pwm_servo, 90)
+                    set_servo_angle(pwm_servo, 95)
+                    checkCircle = 0
                     """蜂鸣器响"""
                 if leftOrRight == "right":
-                    set_servo_angle(pwm_servo, 121)
+                    set_servo_angle(pwm_servo, 110)
+                    checkCircle = 0
                     """蜂鸣器响"""
-
-        # 数据读取
-        if key_1 == 1:
-            print(f"ccd_data1: {ccd_data1}")
-            ccdAllData.append(ccd_data1)
-            key_1 = 0
-
-        if key_2 == 1:
-            print("ccdAllData : \n")
-            print(ccdAllData)
 
         # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get())) # 打印编码器数据
         # wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)  # 无线打印ccd数据
@@ -173,14 +182,11 @@ while True:
     # 屏幕显示
     lcd.str24(0, 24 * 0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
     lcd.str24(0, 24 * 1, "angle={:>.2f}.".format(angle), 0xFFFF)
-    lcd.str24(0, 24 * 2, "mid={:>.2f}.".format(mid_line), 0xFFFF)
-
-    """
-    lcd.str24(0, 24*3, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
-    lcd.str24(0, 24*4, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
-    lcd.str24(0, 24*5, "flag={:>.2f}.".format(flag), 0xFFFF)
-    lcd.str24(0, 24*6, "flag={:>.2f}.".format(flag), 0xFFFF) 
-    """
+    lcd.str24(0, 24 * 2, "mid_line={:>.2f}.".format(mid_line), 0xFFFF)
+    lcd.str24(0, 24 * 3, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
+    lcd.str24(0, 24 * 4, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
+    lcd.str24(0, 24*5, "roadWidth={:>.2f}.".format(roadWidth), 0xFFFF)
+    # lcd.str24(0, 24*6, "roadWidth={:>.2f}.".format(roadWidth), 0xFFFF)
 
     # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
     # lcd.wave(0, 0, 128, 64, ccd_data1, max=200)
@@ -192,3 +198,7 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
+
+
+
+

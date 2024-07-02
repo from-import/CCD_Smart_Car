@@ -24,19 +24,18 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
     left_edge = start
     right_edge = start
 
-
     # 向左扫描
-    while left_edge > 0 and ccd_data[left_edge] == 1:
+    while left_edge > 0 and left_edge < len(ccd_data) and ccd_data[left_edge] == 1:
         left_edge -= 1
 
     # 向右扫描
-    while right_edge < len(ccd_data) - 1 and ccd_data[right_edge] == 1:
+    while right_edge < len(ccd_data) - 1 and right_edge >= 0 and ccd_data[right_edge] == 1:
         right_edge += 1
 
     # 确保扫描结果有效
-    if left_edge == start and ccd_data[left_edge] == 1:
+    if left_edge == start and start < len(ccd_data) and ccd_data[left_edge] == 1:
         left_edge = 0
-    if right_edge == start and ccd_data[right_edge] == 1:
+    if right_edge == start and start < len(ccd_data) and ccd_data[right_edge] == 1:
         right_edge = len(ccd_data) - 1
 
     # 如果没有检测到左边界或右边界,启用丢单线算法
@@ -50,6 +49,7 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
         mid_line = 64 if lastMiddlePosition is None else lastMiddlePosition  # 未检测到左右边界
 
     return left_edge, right_edge, mid_line  # 返回左边界、右边界和中线位置的元组
+
 
 """
 函数名: detect_start_line
