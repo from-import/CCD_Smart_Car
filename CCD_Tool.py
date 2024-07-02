@@ -1,7 +1,5 @@
-from machine import *
-from seekfree import TSL1401
-
-
+def hah():
+    pass
 
 """
 find_road_edges : 查找道路左侧和右侧的边界位置，并计算中线位置。
@@ -25,8 +23,7 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
     # 初始化 left_edge 和 right_edge
     left_edge = start
     right_edge = start
-    print(left_edge)
-    print(right_edge)
+
 
     # 向左扫描
     while left_edge > 0 and ccd_data[left_edge] == 1:

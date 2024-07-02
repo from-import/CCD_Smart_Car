@@ -1,5 +1,6 @@
 from machine import *
 from seekfree import TSL1401
+from CCD_Tool import find_road_edges,CCD_Error
 
 transitions = 0
 flag = 0
@@ -102,9 +103,10 @@ print("是否进入环岛:", is_roundabout)
 """
 
 
+
 def detect_roundabout(binary_data):
-    global error, left_edge, right_edge
-    middle_error = error
+    left_edge , right_edge = find_road_edges(binary_data)
+    middle_error = CCD_Error(binary_data)
 
     if left_edge is not None and right_edge is not None:
         road_width = right_edge - left_edge

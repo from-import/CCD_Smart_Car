@@ -36,7 +36,7 @@ def is_circle(ccd_data):
 
     # 检查右环的条件
     right_ring = False
-    for i in range(30, 127):
+    for i in range(100, 127):
         if ccd_data[i:i - 5:-1] == [1, 1, 1, 1, 1]:
             right_ring = True
             return True, "right"
@@ -72,3 +72,6 @@ def Go_circle_now(ccd_data, last_width=0):
             return True
 
     return False
+
+
+

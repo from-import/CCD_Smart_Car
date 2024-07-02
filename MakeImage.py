@@ -1,15 +1,19 @@
 import matplotlib.pyplot as plt
 from CCD_Tool import find_road_edges
 from Find_Circle import is_circle
+from Find_Barrier import find_barrier
 
 
-kuandu = 50
+width = 50
 left = [0] * 58 + [1] * 34 + [0] * 36
 middle = [0] * 51 + [1] * 26 + [0] * 51
 right = [0] * 28 + [1] * 36 + [0] * 64
+
 leftCircle = [1] * 15 + [0] * 36 + [1] * 26 + [0] * 51
 rightCircle = [0] * 51 + [1] * 26 + [0] * 36 + [1] * 15
 
+rightBarrier = [0]*51 + [1]*13 + [1]*3 + [0]*10 + [0]*51
+leftBarrier = [0]*51 + [0]*10 + [1]*3 + [1]*13 + [0]*51
 
 """
 函数名: ImageCreate
@@ -32,6 +36,7 @@ ImageCreate(left, "left")
 """
 
 
+
 def ImageCreate(ccd_data, name, lastMiddlePosition=64):
     left_edge, right_edge, mid_line = find_road_edges(ccd_data,lastMiddlePosition)
     plt.figure(figsize=(8, 6))
@@ -46,12 +51,27 @@ def ImageCreate(ccd_data, name, lastMiddlePosition=64):
     plt.legend()
     plt.show()
 
+def ImageCreate2(ccd_data, name):
+    plt.figure(figsize=(8, 6))
+    plt.plot(ccd_data, label=name, color='red')
+    plt.axvline(x=64, color='black', linestyle='--', label='x=64')
+    plt.title(name)
+    plt.xlabel(f'Null')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.show()
 
 ImageCreate(left, "left")
 ImageCreate(middle, "middle")
 ImageCreate(right, "right",40)
 ImageCreate(leftCircle, "leftCircle", 64)
 ImageCreate(rightCircle, "rightCircle", 64)
-
+ImageCreate2(leftBarrier, "leftBarrier")
+ImageCreate2(rightBarrier, "rightBarrier")
 print(is_circle(leftCircle))
 print(is_circle(rightCircle))
+
+ImageCreate(leftBarrier, "leftBarrier", 64)
+ImageCreate(rightBarrier, "rightBarrier", 64)
+print(find_barrier(leftBarrier,27))
+print(find_barrier(rightBarrier,28))

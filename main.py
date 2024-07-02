@@ -104,7 +104,7 @@ Tips: 调参部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 # 初始化 ccdSuper 和 angle
 ccdSuper = angle = key_4 = Key_1 = Key_2 = flag = Statu = isCircleNow = mid_line = 0
-
+left_edge = right_edge = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -139,10 +139,8 @@ while True:
         Statu = Element_flag(ccd_data1)  # flag
 
         left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)
+
         ccdSuper = 64 - mid_line
-
-        roadWidth = abs(left_edge - right_edge)  # 道路的宽度，判断入环用
-
         isCircleNow, leftOrRight = is_circle(ccd_data1)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
 
         if isCircleNow:
@@ -155,6 +153,7 @@ while True:
                     set_servo_angle(pwm_servo, 121)
                     """蜂鸣器响"""
 
+        # 数据读取
         if key_1 == 1:
             print(f"ccd_data1: {ccd_data1}")
             ccdAllData.append(ccd_data1)
@@ -167,6 +166,7 @@ while True:
         # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get())) # 打印编码器数据
         # wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)  # 无线打印ccd数据
 
+        roadWidth = abs(left_edge - right_edge)  # 上一次道路的宽度，判断入环和避障用
         # 定时器关断标志
         ticker_flag = False
 
@@ -176,8 +176,8 @@ while True:
     lcd.str24(0, 24 * 2, "mid={:>.2f}.".format(mid_line), 0xFFFF)
 
     """
-    lcd.str24(0, 24*3, "flag={:>.2f}.".format(flag), 0xFFFF)
-    lcd.str24(0, 24*4, "flag={:>.2f}.".format(flag), 0xFFFF)
+    lcd.str24(0, 24*3, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
+    lcd.str24(0, 24*4, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
     lcd.str24(0, 24*5, "flag={:>.2f}.".format(flag), 0xFFFF)
     lcd.str24(0, 24*6, "flag={:>.2f}.".format(flag), 0xFFFF) 
     """
