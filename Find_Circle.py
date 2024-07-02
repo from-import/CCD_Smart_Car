@@ -1,76 +1,51 @@
-def find_road_edges(ccd_data, lastMiddlePosition=None):
-    """工具方法无需理会"""
-    left_edge = None  # 左边界位置初始化为 None
-    right_edge = None  # 右边界位置初始化为 None
-
-    # 检测连续两个相同值的元素，确定左边界和右边界
-    for i in range(len(ccd_data) - 1):
-        if ccd_data[i] == 1 and ccd_data[i + 1] == 1 and left_edge is None:
-            left_edge = i  # 找到连续两个1，作为左边界，避免误差影响
-        if ccd_data[i] == 0 and ccd_data[i + 1] == 0 and left_edge is not None:
-            right_edge = i - 1  # 找到连续两个0，作为右边界，避免误差影响
-            break
-
-    # 如果没有检测到左边界或右边界
-    if left_edge is None:
-        left_edge = 0  # 假设左边界在最左边
-    if right_edge is None:
-        right_edge = len(ccd_data) - 1  # 假设右边界在最右边
-
-    # 计算中线位置
-    mid_line = (left_edge + right_edge) // 2
-
-    # 根据上一次的中线位置调整当前中线位置
-    if lastMiddlePosition is not None:
-        mid_line = (mid_line + lastMiddlePosition) // 2
-
-    return left_edge, right_edge, mid_line  # 返回左边界、右边界和中线位置的元组
-
+from CCD_Tool import find_road_edges
 
 """
-环岛判断方法1
-
-函数名: detect_roundabout
-作用: 判断是否进入环岛。
+函数名: is_roundabout
+作用: 通过分析CCD数据，判断是否进入环岛并检测环岛的方向（左环或右环）。
 
 参数:
-    ccd_data (list): 包含二值化后的CCD数据，其中1表示道路，0表示非道路。
+ccd_data (list): 包含二值化后的CCD数据，其中1表示道路，0表示非道路。
 
-返回值:
-    bool: 如果检测到可能的环岛，则返回True；否则返回False。
+返回值: tuple: 
+如果未检测到环岛，则返回 False,"nothing"
+如果检测到可能的环岛，则返回一个包含两个元素的元组 (True, direction)；
+其中 direction 表示环岛方向 ("left" 或 "right")。否则返回 (False, None)。
 
 说明:
-此函数首先调用 find_road_edges 函数获取道路的左侧和右侧边界位置，并计算出中线位置。
-然后根据道路宽度和中线偏移量进行判断：
-- 如果道路宽度大于90或小于40，或者中线偏移量绝对值大于20，则判定可能进入环岛。
-- 否则，返回False。
-
-调用案例:
-ccd_data = [1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1]
-is_roundabout = detect_roundabout(ccd_data)
-print("是否进入环岛:", is_roundabout)
+此函数首先调用 find_road_edges 函数获取道路的左边界、右边界和中线位置。
+接着判断中线是否在 64 ± 10 范围内，如果不在此范围内，则认为未进入环岛。
+如果中线在此范围内，则分别检查左环和右环的条件：在左侧或右侧的CCD数据中是否存在连续5个1:
+如果存在则判断为进入环岛，并返回环岛方向。
 """
 
-def detect_roundabout(ccd_data):
-    left_edge, right_edge = find_road_edges(ccd_data)
 
-    if left_edge is not None and right_edge is not None:
-        road_width = right_edge - left_edge
-        middle_error = int(0.5 * (left_edge + right_edge)) - 64
+def is_roundabout(ccd_data):
+    left_edge, right_edge, mid_line = find_road_edges(ccd_data)
 
-        # 根据道路宽度和中线偏移量判断是否进入环岛
-        if road_width > 90 or road_width < 40 or abs(middle_error) > 20:
-            return True
+    # 判断中线是否在 64 ± 10 以内,是的话进入下一步
+    if abs(mid_line - 64) > 10:
+        return False
 
-    return False
+    # 检查左环的条件
+    left_ring = False
+    for i in range(0, 30):
+        if ccd_data[i:i + 5] == [1, 1, 1, 1, 1]:
+            left_ring = True
+            return True,"left"
 
-
+    # 检查右环的条件
+    right_ring = False
+    for i in range(30, 127):
+        if ccd_data[i:i - 5:-1] == [1, 1, 1, 1, 1]:
+            right_ring = True
+            return True,"right"
 
 
 """
 环岛判断方法2
 
-函数名: find_roundabout
+函数名: find_circle
 作用: 通过分析CCD数据的道路宽度变化，判断是否进入环岛。
 
 参数:
