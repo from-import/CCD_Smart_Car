@@ -1,7 +1,7 @@
 from CCD_Tool import find_road_edges
 
 """
-函数名: is_roundabout
+函数名: is_circle
 作用: 通过分析CCD数据，判断是否进入环岛并检测环岛的方向（左环或右环）。
 
 参数:
@@ -20,7 +20,7 @@ ccd_data (list): 包含二值化后的CCD数据，其中1表示道路，0表示�
 """
 
 
-def is_roundabout(ccd_data):
+def is_circle(ccd_data):
     left_edge, right_edge, mid_line = find_road_edges(ccd_data)
 
     # 判断中线是否在 64 ± 10 以内,是的话进入下一步
@@ -40,4 +40,5 @@ def is_roundabout(ccd_data):
         if ccd_data[i:i - 5:-1] == [1, 1, 1, 1, 1]:
             right_ring = True
             return True,"right"
+
 
