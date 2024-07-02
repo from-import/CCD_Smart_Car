@@ -40,6 +40,7 @@ CCD 初始化
 """
 from Get_CCD import read_ccd_data, process_ccd_data, map_error_to_servo_angle
 from CCD_Tool import *
+from Find_Circle import *
 
 ccd = TSL1401(1)  # 调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
 ccd.set_resolution(TSL1401.RES_12BIT)  # 调整 CCD 的采样精度为 12bit
@@ -102,7 +103,7 @@ ticker_count = 0  # 时间延长标志（使用方法见encoder例程）
 Tips: 调参部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 # 初始化 ccdSuper 和 angle
-ccdSuper = angle = key_4 = Key_1 = Key_2 = flag = Statu = mid_line = 0
+ccdSuper = angle = key_4 = Key_1 = Key_2 = flag = Statu = isCircleNow = mid_line = 0
 
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
@@ -140,30 +141,46 @@ while True:
         left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)
         ccdSuper = 64 - mid_line
 
+        roadWidth = abs(left_edge - right_edge)  # 道路的宽度，判断入环用
+
+        isCircleNow, leftOrRight = is_circle(ccd_data1)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
+
+        if isCircleNow:
+            goCircle = Go_circle_now(ccd_data1, roadWidth)
+            if goCircle:
+                if leftOrRight == "left":
+                    set_servo_angle(pwm_servo, 90)
+                    """蜂鸣器响"""
+                if leftOrRight == "right":
+                    set_servo_angle(pwm_servo, 121)
+                    """蜂鸣器响"""
+
         if key_1 == 1:
             print(f"ccd_data1: {ccd_data1}")
             ccdAllData.append(ccd_data1)
             key_1 = 0
 
         if key_2 == 1:
+            print("ccdAllData : \n")
             print(ccdAllData)
 
-        # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get()))
+        # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get())) # 打印编码器数据
         # wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)  # 无线打印ccd数据
 
         # 定时器关断标志
         ticker_flag = False
 
     # 屏幕显示
-    lcd.str24(0, 24*0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
-    lcd.str24(0, 24*1, "angle={:>.2f}.".format(angle), 0xFFFF)
-    lcd.str24(0, 24*2, "mid={:>.2f}.".format(mid_line), 0xFFFF)
+    lcd.str24(0, 24 * 0, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
+    lcd.str24(0, 24 * 1, "angle={:>.2f}.".format(angle), 0xFFFF)
+    lcd.str24(0, 24 * 2, "mid={:>.2f}.".format(mid_line), 0xFFFF)
+
+    """
     lcd.str24(0, 24*3, "flag={:>.2f}.".format(flag), 0xFFFF)
     lcd.str24(0, 24*4, "flag={:>.2f}.".format(flag), 0xFFFF)
     lcd.str24(0, 24*5, "flag={:>.2f}.".format(flag), 0xFFFF)
-    lcd.str24(0, 24*6, "flag={:>.2f}.".format(flag), 0xFFFF)
-
-
+    lcd.str24(0, 24*6, "flag={:>.2f}.".format(flag), 0xFFFF) 
+    """
 
     # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
     # lcd.wave(0, 0, 128, 64, ccd_data1, max=200)
