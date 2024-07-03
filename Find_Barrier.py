@@ -16,7 +16,7 @@ from CCD_Tool import find_road_edges
 说明:
     此函数首先调用 `find_road_edges` 函数获取道路的左边界、右边界和中线位置。
     然后计算当前的道路宽度，并根据当前和上一次的道路宽度计算宽度变化率。
-    如果宽度变化率超过设定的阈值（假设为20%），则判断为障碍物。
+    如果宽度变化率超过设定的阈值（假设为30%），则判断为障碍物。(判断依据为在弯道情况下的宽度是缓慢变化,但出现障碍时宽度是瞬间变化)
     如果没有检测到障碍物，则返回False和"nothing"。
 
 示例用法:
@@ -34,7 +34,7 @@ def find_barrier(ccd_buf,lastRoadWidth):
     current_width = right_edge - left_edge
     widthRate = abs(current_width - lastRoadWidth) / lastRoadWidth if lastRoadWidth != 0 else 0
 
-    # 假设宽度变化率阈值为20%
+    # 假设宽度变化率阈值为30%
     threshold = 0.3
 
     if widthRate > threshold:
