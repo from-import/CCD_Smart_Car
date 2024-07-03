@@ -4,6 +4,7 @@ from seekfree import *
 from display import *
 import gc
 import time
+from Find_Barrier import find_barrier
 
 """
 prompt
@@ -156,11 +157,18 @@ while True:
             # 按下后不执行key.clear(4)，电机启动，可一直保持key_4 == 1
             key_4 = 1  # 按键按下后将 key_4 设置为 1
 
-        lastWidth = roadWidth  # 上一次的道路宽度，用于判断避障和环中点
-
+        """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Tips: 基本数据采集部分
+        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
         ccd_data1, ccd_data2 = read_ccd_data(ccd)  # 读取CCD值，存储到数组
         left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)  # 计算左右边界与中线
         ccdSuper = 64 - mid_line  # 误差值
+        lastWidth = roadWidth  # 上一次的道路宽度，用于判断避障和环中点
+        roadWidth = abs(left_edge - right_edge)  # 这一次的道路宽度
+
+        """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Tips: 环岛部分
+        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
         isCircleNow, leftOrRight = is_circle(ccd_data1)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
 
         if (isCircleNow == True) and (goCircle == False):
@@ -177,21 +185,33 @@ while True:
             ccdSuper = 64 - filled_mid_line  # 补线状态下的误差值,覆盖之前的ccdSuper,防止被前半段圆环误判左转
 
             # 在入环标志checkCircle==True时，如果检测到环中点，将goCircle置为True
-            goCircle = Go_circle_now(ccd_data1, roadWidth)
+            goCircle = Go_circle_now(ccd_data1, lastWidth)
             if goCircle:
                 if leftOrRight == "left":
-                    set_servo_angle(pwm_servo, 95)
+                    set_servo_angle(pwm_servo, 95)  # 左打角
                     checkCircle = 0  # 此时置0，退出补线逻辑
                     """蜂鸣器响"""
                 if leftOrRight == "right":
-                    set_servo_angle(pwm_servo, 110)
+                    set_servo_angle(pwm_servo, 110)  # 右打角
                     checkCircle = 0  #此时置0，退出补线逻辑
                     """蜂鸣器响"""
+
+        """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Tips: 避障部分
+        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+        barrierNow, barrierLocation = find_barrier(ccd_data1,lastWidth)
+        if barrierNow:
+            if barrierLocation == "left":
+                set_servo_angle(pwm_servo, 106)  # 障碍物在左侧,右打角
+            if barrierLocation == "right":
+                set_servo_angle(pwm_servo, 97)  # 障碍物在右侧,左打角
+
+
 
         # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get())) # 打印编码器数据
         # wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)  # 无线打印ccd数据
 
-        roadWidth = abs(left_edge - right_edge)  # 上一次道路的宽度，判断入环和避障用
+
         # 定时器关断标志
         ticker_flag = False
 
