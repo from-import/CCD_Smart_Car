@@ -101,7 +101,7 @@ Tips: 调参部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 # 初始化 ccdSuper 和 angle
 ccdSuper = angle = key_4 = Key_1 = Key_2 = flag = Statu = isCircleNow = mid_line = 0
-left_edge = right_edge = isCircleNow = leftOrRight = goCircle = 0
+left_edge = right_edge = isCircleNow = leftOrRight = goCircle = findCircleTimes = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -136,40 +136,56 @@ while True:
         key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
 
         if key_data[0]:
+            # 当1被按下，打印当前ccd_data，并存储到列表
             print(f"ccd_data1: {ccd_data1}")
             ccdAllData.append(ccd_data1)
             key.clear(1)
 
         if key_data[1]:
+            # 当2被按下，打印之前全部存储的ccd_data
             print("ccdAllData : \n")
             print(ccdAllData)
             key.clear(2)
 
         if key_data[2]:
+            # 暂时无用处
             print("key3 = {:>6d}.".format(key_data[2]))
             key.clear(3)
 
         if key_data[3]:
+            # 按下后不执行key.clear(4)，电机启动，可一直保持key_4 == 1
             key_4 = 1  # 按键按下后将 key_4 设置为 1
 
+        lastWidth = roadWidth  # 上一次的道路宽度，用于判断避障和环中点
+
         ccd_data1, ccd_data2 = read_ccd_data(ccd)  # 读取CCD值，存储到数组
-
-        left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)
-
-        ccdSuper = 64 - mid_line
+        left_edge, right_edge, mid_line = find_road_edges(ccd_data1, mid_line)  # 计算左右边界与中线
+        ccdSuper = 64 - mid_line  # 误差值
         isCircleNow, leftOrRight = is_circle(ccd_data1)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
-        if isCircleNow:
-            checkCircle = 1
+
+        if (isCircleNow == True) and (goCircle == False):
+            # 当goCircle 不为True时，进行入环检测，如果goCircle已经变成True，代表在之前已经检测到环
+            # 防止二次判环将goCircle的标志位刷掉，后续赛道存在多个环可以更改此处逻辑
+            findCircleTimes += 1  # 连续n次ccd的数据都判断为入环，才设置为入环标志，防止误判，目前n为2
+
+            if findCircleTimes == 2:
+                checkCircle = 1  # 判断到了入环标志，将checkCircle置1，代表进入入环状态
+                findCircleTimes = 0
+
         if checkCircle:
+            filled_mid_line = fill_line(ccd_data1, leftOrRight, checkCircle)  # 确定补线后的中线
+            ccdSuper = 64 - filled_mid_line  # 补线状态下的误差值,覆盖之前的ccdSuper,防止被前半段圆环误判左转
+
+            # 在入环标志checkCircle==True时，如果检测到环中点，将goCircle置为True
             goCircle = Go_circle_now(ccd_data1, roadWidth)
             if goCircle:
                 if leftOrRight == "left":
                     set_servo_angle(pwm_servo, 95)
-                    checkCircle = 0
+                    checkCircle = 0  # 此时置0，退出补线逻辑
                     """蜂鸣器响"""
                 if leftOrRight == "right":
                     set_servo_angle(pwm_servo, 110)
-                    checkCircle = 0
+                    checkCircle = 0  #此时置0，退出补线逻辑
                     """蜂鸣器响"""
 
         # print("enc ={:>6d}, {:>6d}\r\n".format(encoder_l.get(), encoder_r.get())) # 打印编码器数据
@@ -185,7 +201,7 @@ while True:
     lcd.str24(0, 24 * 2, "mid_line={:>.2f}.".format(mid_line), 0xFFFF)
     lcd.str24(0, 24 * 3, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
     lcd.str24(0, 24 * 4, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
-    lcd.str24(0, 24*5, "roadWidth={:>.2f}.".format(roadWidth), 0xFFFF)
+    lcd.str24(0, 24 * 5, "roadWidth={:>.2f}.".format(roadWidth), 0xFFFF)
     # lcd.str24(0, 24*6, "roadWidth={:>.2f}.".format(roadWidth), 0xFFFF)
 
     # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
@@ -198,7 +214,3 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
-
-
-
-
