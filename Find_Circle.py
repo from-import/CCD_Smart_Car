@@ -58,7 +58,7 @@ last_width (int): 上一次检测到的道路宽度，默认值为0。
 """
 
 
-def Go_circle_now(ccd_data, last_width=0):
+def Go_circle_now(ccd_data, last_width=45):
     left_edge, right_edge, mid_line = find_road_edges(ccd_data)
     current_width = right_edge - left_edge  # 计算当前宽度
 
