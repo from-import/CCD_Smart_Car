@@ -41,13 +41,24 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
     if right_edge == start and start < len(ccd_data) and ccd_data[right_edge] == 1:
         right_edge = len(ccd_data) - 1
 
-    # 如果没有检测到左边界或右边界,启用丢单线算法
     if (left_edge == start or left_edge == 0) and right_edge != start:
-        mid_line = right_edge - 22  # 仅检测到右边界
+        # 仅检测到右边界
+        mid_line = right_edge - 22
+
     elif (right_edge == start or right_edge == len(ccd_data) - 1) and left_edge != start:
-        mid_line = left_edge + 22  # 仅检测到左边界
+        # 仅检测到左边界
+        mid_line = left_edge + 22
+
+    elif left_edge <= 5 and right_edge >= len(ccd_data) - 5:
+        # 处理全白情况
+        mid_line = 64  # 假设道路在中间
+        left_edge = 21  # 设置默认左边界
+        right_edge = 107  # 设置默认右边界
+        return left_edge, right_edge, mid_line  # 返回左边界、右边界和中线位置的元组
+
     elif right_edge != start and left_edge != start:
-        mid_line = (left_edge + right_edge) // 2  # 检测到左右边界
+        # 同时检测到左右边界且不为全白情况
+        mid_line = (left_edge + right_edge) // 2
     else:
         mid_line = 64 if lastMiddlePosition is None else lastMiddlePosition  # 未检测到左右边界
 
@@ -119,3 +130,8 @@ def detect_intersection(binary_data):
         return True
 
     return False
+
+
+ccd = [0] * 2 + [1] * 124 + [0] * 2
+print(detect_intersection(ccd))
+print(find_road_edges(ccd))
