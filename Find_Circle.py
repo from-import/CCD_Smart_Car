@@ -29,12 +29,12 @@ def is_circle(ccd_data):
 
     # 检查左环的条件
     for i in range(0, 20):
-        if ccd_data[i:i + 5] == [1, 1, 1, 1, 1]:
+        if ccd_data[i:i + 10] == [1] * 10:
             return True, "left"
 
     # 检查右环的条件
     for i in range(105, 127):
-        if ccd_data[i:i - 5:-1] == [1, 1, 1, 1, 1]:
+        if ccd_data[i:i - 10:-1] == [1] * 10:
             return True, "right"
     return False, "nothing"
 
@@ -52,8 +52,8 @@ last_width (int): 上一次检测到的道路宽度，默认值为0。
 
 说明:
 此函数首先调用 find_road_edges 函数获取道路的左边界、右边界和中线位置。
-接着计算当前的道路宽度，并判断中线是否在 64 ± 5 范围内。(调参)
-如果中线在此范围内，并且当前宽度小于上一次检测的宽度，则返回True，表示需要现在进行舵机打角入环。
+接着计算当前的道路宽度，并判断宽度是否大于50(调参)
+如果宽度满足要求，并且当前宽度小于上一次检测的宽度+5，则返回True，表示需要现在进行舵机打角入环。
 否则返回False。
 """
 
@@ -62,11 +62,9 @@ def Go_circle_now(ccd_data, last_width=45):
     left_edge, right_edge, mid_line = find_road_edges(ccd_data)
     current_width = right_edge - left_edge  # 计算当前宽度
 
-    # 判断中线是否在 64 ± 5 范围内
-    if abs(mid_line - 64) <= 5:
-
+    if current_width > 50:
         # 判断宽度是否变小,来判断CCD是否扫描到了环的中点位置
-        if last_width > current_width:
+        if last_width > current_width + 5:
             return True
 
     return False
@@ -95,6 +93,7 @@ lastMiddlePosition (int, 可选): 上一次的中线位置，默认为64。
 
 def fill_line(ccd_data, direction, fill, lastMiddlePosition=64):
     if not fill:
+        
         return lastMiddlePosition
 
     left_edge, right_edge, mid_line = find_road_edges(ccd_data, lastMiddlePosition)
