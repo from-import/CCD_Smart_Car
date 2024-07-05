@@ -43,11 +43,13 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
 
     if (left_edge == start or left_edge == 0) and right_edge != start:
         # 仅检测到右边界
-        mid_line = right_edge - 22
+        mid_line = right_edge - 22  # 补中线
+        left_edge = right_edge - 44  # 补左线
 
     elif (right_edge == start or right_edge == len(ccd_data) - 1) and left_edge != start:
         # 仅检测到左边界
-        mid_line = left_edge + 22
+        mid_line = left_edge + 22  # 补中线
+        right_edge = left_edge + 44  # 补右线
 
     elif left_edge <= 5 and right_edge >= len(ccd_data) - 5:
         # 处理全白情况
@@ -122,7 +124,7 @@ bool: True表示检测到十字路口；否则返回False。
 
 
 def detect_intersection(binary_data):
-    # 指定的检查索引位置
+    # 判断是否存在十字路口。
     check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]
 
     # 检查这些位置的元素是否均为1
@@ -132,6 +134,25 @@ def detect_intersection(binary_data):
     return False
 
 
-ccd = [0] * 2 + [1] * 124 + [0] * 2
-print(detect_intersection(ccd))
-print(find_road_edges(ccd))
+"""
+函数名：calculate_curvature
+作用：计算基于连续三个中线位置的曲率。
+
+参数:
+x1 (float): 第一个位置的中线位置。
+x2 (float): 第二个位置的中线位置。
+x3 (float): 第三个位置的中线位置。
+
+返回:
+float: 计算得到的曲率值。
+
+行驶路径类型可以分为直道、曲率小的 s 弯、曲率大的 S 弯和普通弯道 4 类
+u 型弯道和 0 型弯道可以认为是多个同方向普通弯道连接在一起，都可以被认为是普通弯道
+若计算出来的曲率 q接近 0，则说明该段道路为直道或者小 S 弯
+若曲率 q 比较大，则说明该段道路为普通弯道；若计算出来的曲率 q 非常大，则说明该段弯道为大 S 弯
+"""
+
+
+def calculate_curvature(x1, x2, x3):
+    curvature = abs((x3 - x2) - (x2 - x1))
+    return curvature
