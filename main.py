@@ -258,7 +258,7 @@ while True:
             if barrierLocation == "right":
                 pass
 
-        if abs(midline1 - midline2) <= 5:
+        if abs(midline1 - midline2) <= 5:  # 直线的判别，连续五次都找到直线则判断为目前处于直线状态
             midline1EqualsMidline2 += 1
             if midline1EqualsMidline2 == 5:
                 flag = "straight"
@@ -297,14 +297,14 @@ while True:
         ticker_flag = False  # 定时器关断标志
 
     # 屏幕显示
-    lcd.str24(0, 24 * 4, f"flag : {flag}", 0xFFFF)
+    lcd.str24(0, 24 * 0, f"flag : {flag}", 0xFFFF)
     lcd.str24(0, 24 * 1, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
     lcd.str24(0, 24 * 2, "midline1={:>.2f}.".format(midline1), 0xFFFF)
     lcd.str24(0, 24 * 3, "roadWidth={:>.2f}.".format(roadWidth1), 0xFFFF)
     lcd.str24(0, 24 * 4, f"{leftOrRight}", 0xFFFF)
     lcd.str24(0, 24 * 5, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
     lcd.str24(0, 24 * 6, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
-    lcd.str24(0, 24 * 7, "filled_mid_line={:>.2f}.".format(filled_mid_line), 0xFFFF)
+    lcd.str24(0, 24 * 7, "isCrossing={:>.2f}.".format(isCrossing), 0xFFFF)
     lcd.str24(0, 24 * 8, "alreadyOutCircle={:>.2f}.".format(alreadyOutCircle), 0xFFFF)
     lcd.str24(0, 24 * 9, f"barrierLocation={barrierLocation}.", 0xFFFF)
     gc.collect()
