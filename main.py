@@ -1,3 +1,6 @@
+# 下面这一行当调试代码的时候取消掉注释，方便找语法错误所在
+# from deleteME import Pin, TSL1401, WIRELESS_UART, MOTOR_CONTROLLER, encoder, PWM, KEY_HANDLER, ticker
+
 from machine import *
 from smartcar import *
 from seekfree import *
@@ -11,9 +14,6 @@ from Find_Circle import *
 from Old_Motor_Origin import control_motor, control_encoder
 from Old_Motor_Servo import set_servo_angle, duty_angle
 from Screen import init_Screen
-
-# 删除下面这一行
-from deleteME import Pin, TSL1401, WIRELESS_UART, MOTOR_CONTROLLER, encoder, PWM, KEY_HANDLER, ticker
 
 """SMGG.Tips:
 main主要进行初始化，后面的算法处理单独封装，以达到可读，参数调整方便的效果"""
@@ -81,11 +81,14 @@ ticker_count = 0  # 时间延长标志（使用方法见encoder例程）
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 初始化部分（舵机：Middle:101，LeftMax:117，RightMax:88）
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-ccdSuper = angle = key_4 = Key_1 = Key_2 = Statu = isCircleNow = roadWidth1 = roadWidth2 = outCircleTimes = alreadyOutCircleTimes = isCircleNowTimes = 0
-left_edge = right_edge = barrierLocation = alreadyOutCircle = outCircle = checkCircle = goCircle = findCircleTimes = barrierNow = roadWidth = midline1EqualsMidline2 = 0
-mid_line2 = mid_line1 = filled_mid_line = 64
-ccdAllData1 = ccd_data1 = ccdAllData2 = ccd_data2 = []
+ccdSuper = angle = key_4 = Key_1 = Key_2 = Statu = lastLastWidth1 = isCircleNow = crossingTime = outCrossingTime = 0
+isCrossing = roadWidth1 = roadWidth2 = outCircleTimes = alreadyOutCircleTimes = isCircleNowTimes = 0
+left_edge = right_edge = barrierLocation = alreadyOutCircle = lastWidth1 = crossing = outCircle = checkCircle = 0
+goCircle = findCircleTimes = barrierNow = roadWidth = midline1EqualsMidline2 = 0
 
+midline2 = midline1 = filled_mid_line = lastMid_line1 = lastLastMid_line1 = 64
+ccdAllData1 = ccd_data1 = ccdAllData2 = ccd_data2 = []
+fiveTimesRoadWidth1 = fiveTimesRoadWidth2 = fiveTimesMidline1 = fiveTimesMidline2 = [0, 0, 0, 0, 0]
 flag = "straight"
 leftOrRight = "nothing"
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -109,87 +112,104 @@ pit1.callback(time_pit_handler)  # 关联 Python 回调函数
 pit1.start(10)  # 启动 ticker 实例 参数是触发周期 单位是毫秒
 
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-flag对照表:
+曲率 对照表： [上上次中线，上次中线，这次中线] = 曲率
+[64,63,60] = 2
+[64,55,40] = 6
+[64,52,30] = 10
+[64,40,0] = 16
+
+flag 对照表:
 speedUP： 直线加速
 straight：直线
 isCircle：即将入环，舵机保持101(电机通过单边循迹确定修正值)
 goLeftCircle / goRightCircle：左/右强制入环：舵机强制打角
 outLeftCircle / outRightCircle：左/右强制出环：舵机强制打角
 alreadyOutCircle：刚出环，需要通过ccd2循迹
+crossing：十字路口
+lv1Bend：低级弯道
+lv2Bend：初级弯道
+lv3Bend：高级弯道
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 
 while True:
     if ticker_flag:
-        key_data = key.get()  # 获取按键数据
-        key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
-
-        if key_data[0]:
-            # 当1被按下，存储当前的全部ccd_data到列表中
-            ccdAllData1.append(ccd_data1)
-            ccdAllData2.append(ccd_data2)
-            print(f"已经将当前的ccd1和ccd2分别添加到列表中,共添加了{len(ccdAllData1)}次")
-            key.clear(1)
-        if key_data[1]:
-            # 当2被按下，打印之前全部存储的ccd_data
-            print("ccd_data1:")
-            print(ccdAllData1)
-            print("\nccd_data2:")
-            print(ccdAllData2)
-            key.clear(2)
-        if key_data[2]:
-            # 暂时无用处
-            print("key3 = {:>6d}.".format(key_data[2]))
-            key.clear(3)
-        if key_data[3]:
-            # 按下后不执行key.clear(4)，电机启动，可一直保持key_4 == 1
-            key_4 = 1  # 按键按下后将 key_4 设置为 1
-            Statu = 1
-
         """基本数据采集部分"""
         ccd_data1, ccd_data2 = read_ccd_data(ccd)  # 读取CCD值，存储到数组
-        left_edge1, right_edge1, mid_line1 = find_road_edges(ccd_data1, mid_line1)  # 计算左右边界与中线
-        left_edge2, right_edge2, mid_line2 = find_road_edges(ccd_data2, mid_line2)  # 计算左右边界与中线
-
-        # ccdSuper>0,需要右转
-        ccdSuper1 = mid_line1 - 64  # CCD1的误差值
-        ccdSuper2 = mid_line2 - 64  # CCD2的误差值
-
-        ccdSuper = 0.8 * ccdSuper1 + 0.2 * ccdSuper2
+        trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
+        trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
+        lastLastMid_line1 = lastMid_line1  # 上上次的中线位置，计算曲率用
+        lastMid_line1 = midline1  # 上次的中线位置
+        left_edge1, right_edge1, midline1 = find_road_edges(ccd_data1, midline1)  # 计算左右边界与中线
+        left_edge2, right_edge2, midline2 = find_road_edges(ccd_data2, midline2)  # 计算左右边界与中线
+        ccdSuper1 = midline1 - 64  # CCD1的误差值
+        ccdSuper2 = midline2 - 64  # CCD2的误差值
+        ccdSuper = 0.8 * ccdSuper1 + 0.2 * ccdSuper2  # 权重经验公式，来自均速3.8m/s的CCD车
         lastWidth1 = roadWidth1  # 上一次CCD1的道路宽度，用于判断避障和环中点
         lastWidth2 = roadWidth2  # 上一次CCD2的道路宽度，用于判断避障和环中点
         roadWidth1 = abs(left_edge1 - right_edge1)  # 这一次的道路宽度
         roadWidth2 = abs(left_edge2 - right_edge2)  # 这一次的道路宽度
+        fiveTimesRoadWidth1 = [roadWidth1] + fiveTimesRoadWidth1[:-1]  # 从[0]到[4]分别存储了最新五次的CCD1的道路宽度
+        fiveTimesRoadWidth2 = [roadWidth2] + fiveTimesRoadWidth2[:-1]  # 从[0]到[4]分别存储了最新五次的CCD2的道路宽度
+        fiveTimesMidline1 = [midline1] + fiveTimesMidline1[:-1]  # 从[0]到[4]分别存储了最新五次的CCD1的道路宽度
+        fiveTimesMidline2 = [midline2] + fiveTimesMidline2[:-1]  # 从[0]到[4]分别存储了最新五次的CCD2的道路宽度
+        curvature = abs(calculate_curvature(lastLastMid_line1, lastMid_line1, midline1))  # 赛道曲率
+
+        if curvature < 5:
+            flag = "straight"  # 使用elif节省运行时间
+        elif curvature > 5:
+            flag = "lv1Bend"
+        elif curvature > 10:
+            flag = "lv2Bend"
+        elif curvature > 15:
+            flag = "lv3Bend"
 
         """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移"""
-        if abs(ccdSuper2) < 8 and flag == "straight":
+        if abs(ccdSuper2) < 6 and flag == "straight":
             flag = "speedUP"
-        if abs(ccdSuper2) >= 8 and flag == "speedUP":
+        if abs(ccdSuper2) >= 6 and flag == "speedUP":
             flag = "straight"
+
+        """十字路口执行模块"""
+        isCrossing = detect_intersection(ccd_data1, ccd_data2)
+        if isCrossing:
+            crossingTime += 1
+            if crossingTime == 3:
+                flag = "crossing"
+        else:
+            crossingTime = 0
+
+        outCrossing = detect_intersection(ccd_data2, ccd_data1)  # 没写反
+        if outCrossing:
+            outCrossingTime += 1
+            if outCrossingTime == 2:
+                flag = "straight"
+        else:
+            crossingTime = 0
 
         """环岛部分"""
         if leftOrRight == "nothing":  # 防止在找到入环标志后，在后续的跑道中再次误判圆环
             realIsCircleNow, realLeftOrRight = is_circle(ccd_data1, ccd_data2)
-            isCircleNowTimes += 1
-            if isCircleNowTimes == 2:  # 连续三次检测到环，则设置为环
-                isCircleNow, leftOrRight = is_circle(ccd_data1, ccd_data2)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
+            if realIsCircleNow:
+                isCircleNowTimes += 1
+                if isCircleNowTimes == 2:  # 连续三次检测到环，则设置为环
+                    isCircleNow, leftOrRight = is_circle(ccd_data1, ccd_data2)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
+                    isCircleNowTimes = 0
+            else:
                 isCircleNowTimes = 0
 
         """第一步，寻找入环标志：左侧和中间同时出现白色区域，即白黑白"""
         if (isCircleNow == True) and (goCircle == False) and (checkCircle == 0):
             # 防止二次判环将goCircle的标志位刷掉，后续赛道存在多个环可以更改此处逻辑
-            # 如果goCircle已经变成True，代表在之前已经检测到环
-            findCircleTimes += 1  # 每读到一次入环标志，就将findCircleTimes +1，连续n次读到即进入入环状态
-            if findCircleTimes == 2:  # 目前n为2
-                findCircleTimes = 0
-                checkCircle = 1  # 将checkCircle置1，代表进入入环状态
-                flag = "isCircle"
-                time.sleep(1)  # 睡眠1s来防止刚检测到入环标志就判定为入环
+            # 如果goCircle == 1，代表在之前已经检测到环
+            checkCircle = 1  # 将checkCircle置1，代表进入入环状态
+            flag = "isCircle"
+            time.sleep(1)  # 睡眠1s来防止刚检测到入环标志就判定为入环
 
         """第二步，找到环中点，进行强制打角"""
         if checkCircle:
-            filled_mid_line1 = fill_line(ccd_data1, leftOrRight, checkCircle)  # 确定补线后的中线
-            ccdSuper = filled_mid_line1 - 64  # 补线状态下的误差值,覆盖之前的ccdSuper,防止被前半段圆环误判左转
-            print(f"已进入入环状态，此时补线后的中线:{filled_mid_line1}")
+            filled_midline1 = fill_line(ccd_data1, leftOrRight, checkCircle)  # 确定补线后的中线
+            ccdSuper = filled_midline1 - 64  # 补线状态下的误差值,覆盖之前的ccdSuper,防止被前半段圆环误判左转
+            print(f"已进入入环状态，此时补线后的中线:{filled_midline1}")
             goCircle = Go_circle_now(ccd_data1, ccd_data2, lastWidth1)  # 如果检测到环中点，将goCircle置为True
             if goCircle:
                 # 在完成入环后,进入基础的循迹逻辑,环岛运行过程中一般是丢一边线的单边循迹，通过强制打角即可进入环岛
@@ -221,7 +241,7 @@ while True:
             flag = "alreadyOutCircle"
             ccdSuper = ccdSuper2  # 切换ccd2读取的数据来循迹，因为ccd1会被环岛白色区域误判
             if abs(ccdSuper) < 8 and abs(ccdSuper2) < 8:
-                leftOrRight = "alreadyFindCircle"  # 当两个ccd都读到直道，将leftOrRight清除，退出环岛逻辑
+                leftOrRight = "alreadyFinishedCircle"  # 当两个ccd都读到直道，将leftOrRight清除，退出环岛逻辑
 
         """第五步，当ccd1和ccd2都读到了直道，说明已经完全出环"""
         if abs(roadWidth1 - roadWidth2 <= 10):
@@ -238,19 +258,48 @@ while True:
             if barrierLocation == "right":
                 pass
 
-        if abs(mid_line1 - mid_line2) <= 5:
+        if abs(midline1 - midline2) <= 5:
             midline1EqualsMidline2 += 1
             if midline1EqualsMidline2 == 5:
                 flag = "straight"
         else:
             midline1EqualsMidline2 = 0
 
+        # 按键逻辑
+        key_data = key.get()  # 获取按键数据
+        key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
+
+        if key_data[0]:
+            # 当1被按下，存储当前的全部ccd_data到列表中
+            ccdAllData1.append(ccd_data1)
+            ccdAllData2.append(ccd_data2)
+            print(f"已经将当前的ccd1和ccd2分别添加到列表中,共添加了{len(ccdAllData1)}次")
+            key.clear(1)
+
+        if key_data[1]:
+            # 当2被按下，打印之前全部存储的ccd_data
+            print("ccd_data1:")
+            print(ccdAllData1)
+            print("\nccd_data2:")
+            print(ccdAllData2)
+            key.clear(2)
+
+        if key_data[2]:
+            # 暂时无用处
+            print("key3 = {:>6d}.".format(key_data[2]))
+            key.clear(3)
+
+        if key_data[3]:
+            # 按下后不执行key.clear(4)，电机启动，可一直保持key_4 == 1
+            key_4 = 1  # 按键按下后将 key_4 设置为 1
+            Statu = 1
+
         ticker_flag = False  # 定时器关断标志
 
     # 屏幕显示
     lcd.str24(0, 24 * 4, f"flag : {flag}", 0xFFFF)
     lcd.str24(0, 24 * 1, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
-    lcd.str24(0, 24 * 2, "mid_line1={:>.2f}.".format(mid_line1), 0xFFFF)
+    lcd.str24(0, 24 * 2, "midline1={:>.2f}.".format(midline1), 0xFFFF)
     lcd.str24(0, 24 * 3, "roadWidth={:>.2f}.".format(roadWidth1), 0xFFFF)
     lcd.str24(0, 24 * 4, f"{leftOrRight}", 0xFFFF)
     lcd.str24(0, 24 * 5, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
@@ -265,4 +314,3 @@ while True:
         pit1.stop()
         print("Ticker stop.")
         break
-
