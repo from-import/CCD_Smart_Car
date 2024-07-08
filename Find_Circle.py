@@ -1,59 +1,46 @@
 from CCD_Tool import find_road_edges
 
-"""
-函数名: is_circle
-作用: 通过分析CCD数据，判断是否进入环岛并检测环岛的方向（左环或右环）。
-
-参数:
-ccd_data1 (list): 第一个CCD传感器的二值化数据，其中1表示道路，0表示非道路。
-ccd_data2 (list): 第二个CCD传感器的二值化数据，用于进一步确认环岛的存在和方向。
-
-返回值: tuple:
-如果未检测到环岛，则返回 (False, "nothing")
-如果检测到可能的环岛，则返回一个包含两个元素的元组 (True, direction)；
-其中 direction 表示环岛方向 ("left" 或 "right")。
-
-说明:
-此函数首先调用 find_road_edges 函数获取两个CCD数据的道路左边界、右边界和中线位置。
-接着，根据第一个CCD的中线位置判断是否可能进入环岛：如果中线在预设的中心位置64 ± 10范围内，
-则认为可能进入环岛。随后，根据第二个CCD的数据进一步判断环岛的方向：
-1. 如果左环存在，左边界不变但右边界增宽，且在一定区间内检测到连续的道路标识。
-2. 如果右环存在，右边界不变但左边界增宽，且在一定区间内检测到连续的道路标识。
-根据这些条件，返回是否检测到环岛及其方向。
-"""
-
-
 def is_circle(ccd_data1, ccd_data2):
-    # 注意：正常状态下的左边缘=中线-20，右边缘=中线+20
-    # 注意：在入环标志位下，并保持车辆直行，才能继续检测Go_circle_now，防止误检测
+    """
+    作用: 通过分析CCD数据，判断是否进入环岛并检测环岛的方向（左环或右环）。
+    参数:
+    ccd_data1 (list): 第一个CCD传感器的二值化数据，其中1表示道路，0表示非道路。
+    ccd_data2 (list): 第二个CCD传感器的二值化数据，用于进一步确认环岛的存在和方向。
+    返回值: tuple:
+    如果未检测到环岛，则返回 (False, "nothing")
+    如果检测到可能的环岛，则返回一个包含两个元素的元组 (True, direction)；
+    其中 direction 表示环岛方向 ("left" 或 "right")。
+    """
 
-    debug = 1  # debug == 1时，Print出每个值来判断哪里有问题
+    debug = 0  # debug == 1时，Print出每个值来判断哪里有问题
     left_edge1, right_edge1, mid_line1 = find_road_edges(ccd_data1)
     left_edge2, right_edge2, mid_line2 = find_road_edges(ccd_data2)
+    width1 = abs(left_edge1 - right_edge1)
     width2 = abs(left_edge2 - right_edge2)
 
     if debug:
         print(f"step1: mid_line1={mid_line1},mid_line2={mid_line2}")
         print(f"step2: left_edge2={left_edge2},right_edge2={right_edge2},width2 = {width2}")
 
-    # Step1：判断近端CCD中线是否在 64 ± 10 以内
-    if abs(mid_line1 - 64) < 10:
+    # Step1：判断近端CCD中线是否在 64 ± 10 以内且宽度为直道的宽度
+    if abs(mid_line1 - 64) < 10 and abs(width1 - 42) < 10:
 
         # Step2：如果左边缘坐标不变但是总宽度变大，代表右环
-        if abs(left_edge2 - 40) <= 5 and width2 > 50:
+        if abs(left_edge2 - 40) <= 10 and width2 > 50:
             # Step3 检查右环的条件
             for i in range(105, 126):
-                if ccd_data2[i:i - 10:-1] == [1] * 10:
+                if ccd_data2[i:i - 6:-1] == [1] * 6:
                     return True, "right"
 
         # Step2：如果右边缘坐标不变但是总宽度变大，代表左环
-        if abs(right_edge2 - 80) <= 5 and width2 > 50:
+        if abs(right_edge2 - 80) <= 10 and width2 > 50:
             # Step3: 检查左环的条件
             for i in range(5, 26):
-                if ccd_data2[i:i + 10:1] == [1] * 10:
+                if ccd_data2[i:i + 6:1] == [1] * 6:
                     return True, "left"
 
     return False, "nothing"
+
 
 
 """

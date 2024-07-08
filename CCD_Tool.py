@@ -123,13 +123,14 @@ bool: True表示检测到十字路口；否则返回False。
 """
 
 
-def detect_intersection(binary_data):
+def detect_intersection(ccd1, ccd2):
     # 判断是否存在十字路口。
     check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]
 
     # 检查这些位置的元素是否均为1
-    if all(binary_data[i] == 1 for i in check_indices):
-        return True
+    if all(ccd2[i] == 1 for i in check_indices):
+        if ccd1[64] == 1:
+            return True
 
     return False
 

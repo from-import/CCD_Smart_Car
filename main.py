@@ -11,6 +11,7 @@ from Find_Barrier import find_barrier
 from Get_CCD import *
 from CCD_Tool import *
 from Find_Circle import *
+from Old_Get_CCD import read_ccd_data
 from Old_Motor_Origin import control_motor, control_encoder
 from Old_Motor_Servo import set_servo_angle, duty_angle
 from Screen import init_Screen
@@ -143,7 +144,7 @@ while True:
         left_edge2, right_edge2, midline2 = find_road_edges(ccd_data2, midline2)  # 计算左右边界与中线
         ccdSuper1 = midline1 - 64  # CCD1的误差值
         ccdSuper2 = midline2 - 64  # CCD2的误差值
-        ccdSuper = 0.8 * ccdSuper1 + 0.2 * ccdSuper2  # 权重经验公式，来自均速3.8m/s的CCD车
+        ccdSuper = 0.9 * ccdSuper1 + 0.1 * ccdSuper2  # 权重经验公式，来自均速3.8m/s的CCD车
         lastWidth1 = roadWidth1  # 上一次CCD1的道路宽度，用于判断避障和环中点
         lastWidth2 = roadWidth2  # 上一次CCD2的道路宽度，用于判断避障和环中点
         roadWidth1 = abs(left_edge1 - right_edge1)  # 这一次的道路宽度
@@ -163,9 +164,10 @@ while True:
         elif curvature > 15:
             flag = "lv3Bend"
 
-        """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移"""
+        """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移
         if abs(ccdSuper2) < 6 and flag == "straight":
             flag = "speedUP"
+        """
         if abs(ccdSuper2) >= 6 and flag == "speedUP":
             flag = "straight"
 
@@ -222,7 +224,7 @@ while True:
                 time.sleep(0.5)
 
         """第三步，在完成环岛动作后，一旦找到十字路口的样式,代表找到了出环位置(左右均全白),此时强制打角出环,然后调用ccd_data2进行直线循迹"""
-        outCircle = (detect_intersection(ccd_data1))  # 十字路口判别模式
+        outCircle = (detect_intersection(ccd_data1,ccd_data2))  # 十字路口判别模式
         if outCircle and goCircle:
             outCircleTimes += 1
             if outCircleTimes == 2:
@@ -314,3 +316,4 @@ while True:
         pit1.stop()
         print("Ticker stop.")
         break
+
