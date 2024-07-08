@@ -78,7 +78,7 @@ last_width (int, optional): 上一次测量的宽度，默认值为45。此参�
 """
 
 
-def Go_circle_now(ccd_data1, ccd_data2, last_width=int(45)):
+def Go_circle_now(ccd_data1, ccd_data2, last_width1=int(45)):
     # 注意，在入环标志位下，才进行Go_circle的检测，防止误判
     left_edge1, right_edge1, mid_line1 = find_road_edges(ccd_data1)
     left_edge2, right_edge2, mid_line2 = find_road_edges(ccd_data2)
@@ -87,8 +87,8 @@ def Go_circle_now(ccd_data1, ccd_data2, last_width=int(45)):
 
     if current_width1 > 45:
         # 判断宽度是否变小,来判断CCD是否扫描到了环的中点位置
-        print(f"last_width:{last_width},current_width1:{current_width1},current_width2:{current_width2}")
-        if last_width > current_width1 + 5 and current_width2 > current_width1:
+        print(f"last_width:{last_width1},current_width1:{current_width1},current_width2:{current_width2}")
+        if last_width1 > current_width1 + 5 and current_width2 > current_width1:
             # 此处的 +5 和 current_width1 > 45 都会被车速影响(车速越快，宽度变化速率越快，需要调参)
             # 此时CCD1找到圆环中点，CCD2扫描到CCD1前面的区域，因此2宽度大于1
             return True
