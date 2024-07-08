@@ -193,19 +193,20 @@ while True:
             realIsCircleNow, realLeftOrRight = is_circle(ccd_data1, ccd_data2)
             if realIsCircleNow:
                 isCircleNowTimes += 1
-                if isCircleNowTimes == 2:  # 连续三次检测到环，则设置为环
+                if isCircleNowTimes == 3:  # 连续三次检测到环，则设置为环
                     isCircleNow, leftOrRight = is_circle(ccd_data1, ccd_data2)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
                     isCircleNowTimes = 0
+
             else:
                 isCircleNowTimes = 0
 
         """第一步，寻找入环标志：左侧和中间同时出现白色区域，即白黑白"""
-        if (isCircleNow == True) and (goCircle == False) and (checkCircle == 0):
+        if (isCircleNow == True) and (goCircle == False):
             # 防止二次判环将goCircle的标志位刷掉，后续赛道存在多个环可以更改此处逻辑
             # 如果goCircle == 1，代表在之前已经检测到环
             checkCircle = 1  # 将checkCircle置1，代表进入入环状态
             flag = "isCircle"
-            time.sleep(1)  # 睡眠1s来防止刚检测到入环标志就判定为入环
+            time.sleep(2)  # 睡眠1s来防止刚检测到入环标志就判定为入环
 
         """第二步，找到环中点，进行强制打角"""
         if checkCircle:
@@ -221,7 +222,8 @@ while True:
                 if leftOrRight == "right":
                     flag = "goRightCircle"
                     checkCircle = 0
-                time.sleep(0.5)
+                time.sleep(2)
+                flag = "straight"
 
         """第三步，在完成环岛动作后，一旦找到十字路口的样式,代表找到了出环位置(左右均全白),此时强制打角出环,然后调用ccd_data2进行直线循迹"""
         outCircle = (detect_intersection(ccd_data1,ccd_data2))  # 十字路口判别模式
@@ -235,7 +237,7 @@ while True:
                     flag = "outLeftCircle"
                 if leftOrRight == "right":
                     flag = "outRightCircle"
-                time.sleep(0.5)
+                time.sleep(2)
                 outCircleTimes = 0
 
         """第四步，切换ccd2来读取数据(ccd2读的更远，不会被干扰)，确保成功进入直道"""
@@ -272,23 +274,22 @@ while True:
         key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
 
         if key_data[0]:
-            # 当1被按下，存储当前的全部ccd_data到列表中
-            ccdAllData1.append(ccd_data1)
-            ccdAllData2.append(ccd_data2)
-            print(f"已经将当前的ccd1和ccd2分别添加到列表中,共添加了{len(ccdAllData1)}次")
+            # 无用
             key.clear(1)
 
         if key_data[1]:
-            # 当2被按下，打印之前全部存储的ccd_data
+            # 当2被按下，存储当前的全部ccd_data到列表中
+            ccdAllData1.append(ccd_data1)
+            ccdAllData2.append(ccd_data2)
+            print(f"已经将当前的ccd1和ccd2分别添加到列表中,共添加了{len(ccdAllData1)}次")
+            key.clear(2)
+
+        if key_data[2]:
+            # 当3被按下，打印之前全部存储的ccd_data
             print("ccd_data1:")
             print(ccdAllData1)
             print("\nccd_data2:")
             print(ccdAllData2)
-            key.clear(2)
-
-        if key_data[2]:
-            # 暂时无用处
-            print("key3 = {:>6d}.".format(key_data[2]))
             key.clear(3)
 
         if key_data[3]:

@@ -126,10 +126,13 @@ bool: True表示检测到十字路口；否则返回False。
 def detect_intersection(ccd1, ccd2):
     # 判断是否存在十字路口。
     check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]
+    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1)
+    width1 = abs(left_edge1 - right_edge1)
+
 
     # 检查这些位置的元素是否均为1
     if all(ccd2[i] == 1 for i in check_indices):
-        if ccd1[64] == 1:
+        if width1 < 50:
             return True
 
     return False

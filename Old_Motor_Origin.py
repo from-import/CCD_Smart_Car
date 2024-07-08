@@ -35,47 +35,49 @@ def control_encoder(encoder_l, encoder_r):
     gc.collect()
 
 
-"""
-control_motor:控制指定的电机，并根据占空比值改变电机转速和方向。
-
-参数:
-duty (int): 电机的占空比值，范围为 ±10000。正数表示正转，负数表示反转。
-motor_l (MOTOR_CONTROLLER): 已初始化的左电机实例。
-motor_r (MOTOR_CONTROLLER): 已初始化的右电机实例。
-"""
-
-
-def control_motor(motor_l, motor_r, error, Statu, flag):
+def control_motor(motor_l, motor_r, Key_4, error, Statu):
     global dutyL, dutyR, errorl, errorR, error_pre_lastl, error_pre_lastr, error_prel, error_prer
     global encl_data, encr_data, Stop
+    """
+    控制指定的电机，并根据占空比值改变电机转速和方向。
+
+    参数:
+    duty (int): 电机的占空比值，范围为 ±10000。正数表示正转，负数表示反转。
+    motor_l (MOTOR_CONTROLLER): 已初始化的左电机实例。
+    motor_r (MOTOR_CONTROLLER): 已初始化的右电机实例。
+    """
 
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 调参
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    Motor_P = 1
-    Motor_I = 5
+    Motor_P = 15
+    Motor_I = 6.5
     Motor_D = 0
 
     # 设置初始目标值
-    speed_L = 40
-    speed_R = 40
+    speed_L = 50
+    speed_R = 50
 
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 直线PID
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-
-    if Statu:  # 防止按键启动前的误差积累
-        errorl = (int)(speed_L - encl_data) * 1  # 左轮PID
+    # 防止按键启动前的误差积累
+    if Key_4:
+        # 左轮PID
+        errorl = (int)(speed_L - encl_data) * (1)
         dutyL = dutyL + (errorl - error_prel) * Motor_P + errorl * Motor_I + (
-                errorl - 2 * (error_prel) + error_pre_lastl) * Motor_D
+                    errorl - 2 * (error_prel) + error_pre_lastl) * Motor_D
         error_pre_lastl = error_prel
         error_prel = errorl
+        # print(errorl)
 
-        errorR = (int)(speed_R - encr_data) * 1  # 右轮PID
+        # 右轮PID
+        errorR = (int)(speed_R - encr_data) * (1)
         dutyR = dutyR + (errorR - error_prer) * Motor_P + errorR * Motor_I + (
-                errorR - 2 * (error_prer) + error_pre_lastr) * Motor_D
+                    errorR - 2 * (error_prer) + error_pre_lastr) * Motor_D
         error_pre_lastr = error_prer
         error_prer = errorR
+        # print(errorR)
 
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 调参
@@ -84,31 +86,32 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
     Dir_P = 0
     Dir_I = 1
     Dir_D = 0
-
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 转向PID(等待传入offset)
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    # 处理误差小于15的情况
-    if 0 < abs(error) < 15:
-        Dir_value = (0.05 * error) * ((error - dir_error) * Dir_P + error * Dir_I +
-                                      (error - 2 * (dir_error) + dir_error_last) * Dir_D)
+    if abs(error) > 15:
+        Dir_value = (error - dir_error) * Dir_P + error * Dir_I + (error - 2 * (dir_error) + dir_error_last) * Dir_D
         dir_error = error
         dir_error_last = dir_error
 
         dutyR = dutyR - Dir_value
         dutyL = dutyL + Dir_value
 
-    if 15 < abs(error) < 64:
-        Dir_value = ((error - dir_error) * Dir_P + error * Dir_I +
-                     (error - 2 * (dir_error) + dir_error_last) * Dir_D)
-        dir_error = error
-        dir_error_last = dir_error
-        dutyR = dutyR - Dir_value
-        dutyL = dutyL + Dir_value
+    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    Tips: 其他功能
+    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+    #
+    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    Tips: 按键启动,出线停车
+    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+    if not Statu:
+        dutyL = dutyR = 0
+    if not Key_4:
+        dutyL = dutyR = 0
 
-    if flag == "isCircle":
-        dutyR = dutyL = 2000  # 入环检测后强制直行
-    # 限幅
+    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    Tips: 限幅，运行
+    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
     if dutyL > 5000:
         dutyL = 5000
     elif dutyL < -3000:
@@ -117,9 +120,6 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
         dutyR = 5000
     elif dutyR < -3000:
         dutyR = -3000
-
-    if not Statu:
-        dutyL = dutyR = 0  # 按键启动
 
     # 更新电机PWM
     motor_l.duty(dutyL)
@@ -134,3 +134,5 @@ control_motor(2500, 'left', motor_l, motor_r, led1)  # 控制左电机，以占�
 time.sleep(2)  # 运行 2 秒
 control_motor(-2500, 'right', motor_l, motor_r, led1)  # 控制右电机，以占空比 -2500 运行
 """
+
+
