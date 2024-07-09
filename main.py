@@ -270,7 +270,7 @@ while True:
             if ticker_flag:
                 """基本数据采集部分"""
                 Allccd = read_ccd_data(ccd)
-                ccd_data1 = Allccd[0]
+                ccd_data1 = Allccd[0]  # 读取CCD值，存储到数组
                 ccd_data2 = Allccd[1]  # 读取CCD值，存储到数组
                 trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
                 trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
@@ -292,7 +292,7 @@ while True:
                 curvature = abs(calculate_curvature(lastLastMid_line1, lastMid_line1, midline1))  # 赛道曲率
 
                 if curvature < 5:
-                    flag = "straight"  # 使用elif节省运行时间
+                    flag = "straight"
                 elif curvature > 5:
                     flag = "lv1Bend"
                 elif curvature > 10:
@@ -303,9 +303,10 @@ while True:
                 """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移
                 if abs(ccdSuper2) < 6 and flag == "straight":
                     flag = "speedUP"
-                """
+                
                 if abs(ccdSuper2) >= 6 and flag == "speedUP":
                     flag = "straight"
+                """
 
                 """十字路口执行模块"""
                 isCrossing = detect_intersection(ccd_data1, ccd_data2)
@@ -330,9 +331,9 @@ while True:
                     if realIsCircleNow:
                         isCircleNowTimes += 1
                         if isCircleNowTimes == 3:  # 连续三次检测到环，则设置为环
-                            isCircleNow, leftOrRight = is_circle(ccd_data1, ccd_data2)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
+                            isCircleNow, leftOrRight = is_circle(ccd_data1, ccd_data2)
+                            # isCircleNow 为是否检测到环，leftOrRight为左环还是右环
                             isCircleNowTimes = 0
-
                     else:
                         isCircleNowTimes = 0
 
@@ -410,8 +411,6 @@ while True:
                 key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
 
                 if key_data[0]:
-                    ccd_data1, ccd_data2 = read_ccd_data(ccd)  # 读取CCD值，存储到数组
-                    # 当1被按下，存储当前的全部ccd_data到列表中
                     ccdAllData1.append(ccd_data1)
                     ccdAllData2.append(ccd_data2)
                     print(f"已经将当前的ccd1和ccd2分别添加到列表中,共添加了{len(ccdAllData1)}次")

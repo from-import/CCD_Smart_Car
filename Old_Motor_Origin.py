@@ -35,7 +35,7 @@ def control_encoder(encoder_l, encoder_r):
     gc.collect()
 
 
-def control_motor(motor_l, motor_r, Key_4, error, Statu):
+def control_motor(motor_l, motor_r, error, Statu, flag):
     global dutyL, dutyR, errorl, errorR, error_pre_lastl, error_pre_lastr, error_prel, error_prer
     global encl_data, encr_data, Stop
     """
