@@ -86,11 +86,11 @@ def ImageCreate(ccd_data, name, lastMiddlePosition=64,midline = None):
     plt.ylabel('Value')
     plt.legend()
     plt.show()
+"""
 
 for i in range(0,len(Cross_ccd2_1)):
     ImageCreate2(Cross_ccd2_1[i], "ccd1", Cross_ccd2_2[i], "ccd2")
 
-"""
 for i in range(0,len(fullCircle_ccd1)):
     ImageCreate2(fullCircle_ccd1[i],"ccd1", fullCircle_ccd2[i], "ccd2")
 

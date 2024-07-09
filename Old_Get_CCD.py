@@ -116,7 +116,7 @@ def read_ccd_data(ccd):
     binary_ccd1 = binary_thresholding(filtered_ccd1)
     binary_ccd2 = binary_thresholding(filtered_ccd2)
 
-    return binary_ccd1, binary_ccd2
+    return [binary_ccd1, binary_ccd2]
 
 
 """
