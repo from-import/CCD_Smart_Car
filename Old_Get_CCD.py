@@ -1,9 +1,3 @@
-from machine import *
-from seekfree import TSL1401
-
-T_old = 400
-
-
 def get_mid(a, b, c):
     # 获取三个值中的中间值。
     x = 0
@@ -35,6 +29,40 @@ def bin_ccd_filter(data):
     return filtered_data
 
 
+"""函数作用：return目前计算出来的阈值"""
+def threshold_determination(data):
+    # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
+    # 找出数据列表中的最大值和最小值，确定数据的动态范围。
+    max_val = max(data)
+    min_val = min(data)
+    T = (max_val + min_val) / 2  # 第三步：初始估计阈值
+
+    while True:
+        """二值化处理图像，并产生两个组数据
+        进入迭代循环，不断调整阈值 T，以逐步逼近最佳阈值。
+        将数据分为两组：大于当前阈值 T 的数据 (sum_h) 和小于等于当前阈值 T 的数据 (sum_l)。
+        分别计算两组数据的平均值：max_ave 和 min_ave, 更新阈值为两组平均值的平均值 T_last。
+        如果新阈值 T_last 与旧阈值 T 的差值小于一个很小的数（如 1e-6），则认为阈值已稳定，终止迭代。
+        迭代过程确保阈值在数据分布的基础上进行动态调整，逐步逼近最佳阈值。"""
+        sum_h = [x for x in data if x > T]
+        sum_l = [x for x in data if x <= T]
+        if len(sum_h) == 0:
+            max_ave = 0
+        else:
+            max_ave = sum(sum_h) / len(sum_h)
+        if len(sum_l) == 0:
+            min_ave = 0
+        else:
+            min_ave = sum(sum_l) / len(sum_l)
+        # 第六步：计算最终的阈值
+        T_last = (max_ave + min_ave) / 2
+        # 检查阈值是否稳定
+        if abs(T_last - T) < 1e-6:
+            break
+        T = T_last
+    return T  # 阈值
+
+
 """
 二值化处理函数，对 CCD 数据进行二值化处理。
 
@@ -47,58 +75,8 @@ T_old (float): 上一次的阈值，用于全黑情况下的处理。
 list: 二值化后的 CCD 数据。
 """
 
-
-def binary_thresholding(data, all_black_difference_value=300):
-    global T_old
-
-    # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
-    # 找出数据列表中的最大值和最小值，确定数据的动态范围。
-    max_val = max(data)
-    min_val = min(data)
-    # print(error)
-
-    # 第二步：判断最大值和最小值的偏差是否大于全黑时的偏差值
-    # 如果差值小于或等于这个偏差值，则认为数据是全黑的
-    # 在全黑情况下，使用上一次的阈值(T_old)进行二值化，避免在全黑情况下计算新的阈值
-    if (max_val - min_val) <= all_black_difference_value:
-        return [0 if x <= T_old else 1 for x in data]
-
-    # 第三步：初始估计阈值
-    T = (max_val + min_val) / 2
-
-    while True:
-        """
-        第四步：二值化处理图像，并产生两个组数据
-        进入迭代循环，不断调整阈值 T，以逐步逼近最佳阈值。
-        将数据分为两组：大于当前阈值 T 的数据 (sum_h) 和小于等于当前阈值 T 的数据 (sum_l)。
-        分别计算两组数据的平均值：max_ave 和 min_ave, 更新阈值为两组平均值的平均值 T_last。
-        如果新阈值 T_last 与旧阈值 T 的差值小于一个很小的数（如 1e-6），则认为阈值已稳定，终止迭代。
-        迭代过程确保阈值在数据分布的基础上进行动态调整，逐步逼近最佳阈值。
-        """
-
-        sum_h = [x for x in data if x > T]
-        sum_l = [x for x in data if x <= T]
-        if len(sum_h) == 0:
-            max_ave = 0
-        else:
-            max_ave = sum(sum_h) / len(sum_h)
-        if len(sum_l) == 0:
-            min_ave = 0
-        else:
-            min_ave = sum(sum_l) / len(sum_l)
-
-        # 第六步：计算最终的阈值
-        T_last = (max_ave + min_ave) / 2
-
-        # 检查阈值是否稳定
-        if abs(T_last - T) < 1e-6:
-            break
-
-        T = T_last
-        T_old = T
-
-    # 返回二值化后的数据
-    return [0 if x <= T_last else 1 for x in data]
+def binary_thresholding(data,T):
+    return [0 if x <= T else 1 for x in data]
 
 
 """
@@ -111,14 +89,14 @@ def binary_thresholding(data, all_black_difference_value=300):
 """
 
 
-def read_ccd_data(ccd_data1, ccd_data2):
+def read_ccd_data(ccd_data1, ccd_data2,T1,T2):
     # CCD 数据滤波
     filtered_ccd1 = bin_ccd_filter(ccd_data1)
     filtered_ccd2 = bin_ccd_filter(ccd_data2)
 
     # CCD 数据二值化
-    binary_ccd1 = binary_thresholding(filtered_ccd1)
-    binary_ccd2 = binary_thresholding(filtered_ccd2)
+    binary_ccd1 = binary_thresholding(filtered_ccd1,T1)
+    binary_ccd2 = binary_thresholding(filtered_ccd2,T2)
 
     return [binary_ccd1, binary_ccd2]
 
@@ -146,13 +124,6 @@ def map_error_to_servo_angle(error, mid_angle=100, left_max_angle=125, right_max
     return angle
 
 """
-函数名：process_ccd_data
-作用：处理 CCD 数据以识别赛道类型并调整舵机。
-
-参数: ccd_data (list): CCD 数据列表。
-
-返回: dict: 包含偏差值、Kp 值和调整方向信息。
-
 在直道，偏差（Error）会变得很小，绝对值小于10，控制舵机直行，不转弯。
 十字路口都是与270°的弯道连接在一起的。由于十字路口没有两端的黑色引导线，通过CCD采集的数据分析，
 计算进入前的3次偏差位置，求出它的斜率，再通过斜率计算出智能小车在十字路口上舵机转弯大小，从而保证小车顺利通过十字路口。
@@ -160,25 +131,7 @@ def map_error_to_servo_angle(error, mid_angle=100, left_max_angle=125, right_max
 从CCD采集回来小S弯道的数据来看，由于小S弯道的位置偏差较小，而且采用一次元函数动态Kp的方法来控制舵机转弯，
 Kp的值可以通过这些小偏差的改变而改变，即Kp=0.05×偏差。因此，可以保证智能车以较高的速度完美通过小S弯道。
 """
-def process_ccd_data(ccd_data):
 
-    left_black = ccd_data.index(max(ccd_data[:64]))  # 找到左侧黑点位置
-    right_black = ccd_data.index(max(ccd_data[64:])) + 64  # 找到右侧黑点位置
-
-    # 计算 superError
-    indices_with_value_1 = [i for i, v in enumerate(ccd_data) if v == 1]
-    if indices_with_value_1:
-        weighted_average_index = sum(indices_with_value_1) / len(indices_with_value_1)
-    else:
-        weighted_average_index = 64  # 如果没有值为 1 的索引，默认值为 64
-
-    super_error = weighted_average_index - 64
-
-    error, kp = calculate_error_and_kp(left_black, right_black)
-    steering_adjustment = adjust_steering(error)
-    #print(super_error)
-
-    return super_error
 
 """
 函数名：adjust_exposure_time

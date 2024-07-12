@@ -10,7 +10,7 @@ import time
 from Find_Barrier import find_barrier
 from CCD_Tool import *
 from Find_Circle import *
-from Old_Get_CCD import read_ccd_data
+from Old_Get_CCD import read_ccd_data,threshold_determination
 from Old_Motor_Origin import control_motor, control_encoder
 from Old_Motor_Servo import set_servo_angle, duty_angle
 from Screen import init_Screen
@@ -219,7 +219,7 @@ while True:
         ccdSuper = angle = key_4 = Key_1 = Key_2 = Statu = lastLastWidth1 = isCircleNow = crossingTime = outCrossingTime = 0
         isCrossing = roadWidth1 = roadWidth2 = outCircleTimes = alreadyOutCircleTimes = isCircleNowTimes = 0
         left_edge = right_edge = barrierLocation = alreadyOutCircle = lastWidth1 = crossing = outCircle = checkCircle = 0
-        goCircle = findCircleTimes = barrierNow = roadWidth = midline1EqualsMidline2 = 0
+        goCircle = findCircleTimes = barrierNow = roadWidth = midline1EqualsMidline2 = ccdThresholdDetermination = 0
 
         midline2 = midline1 = filled_mid_line = lastMid_line1 = lastLastMid_line1 = 64
         ccdAllData1 = ccd_data1 = ccdAllData2 = ccd_data2 = []
@@ -267,12 +267,25 @@ while True:
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
         while True:
             if ticker_flag:
+                # 初始确定CCD1和CCD2的阈值
+                if Statu == 1 and ccdThresholdDetermination == 0:
+                    ccdThresholdDetermination = 1
+                    T1 = T2 = 0
+                    for _ in range(0,3):
+                        originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
+                        originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
+                        T1 += threshold_determination(originalCcdData1)
+                        T2 += threshold_determination(originalCcdData2)
+                    T1 = T1/3.0
+                    T2 = T2/3.0
+
                 """基本数据采集部分"""
-                originalCcdData1 = ccd.get(0)
-                originalCcdData2 = ccd.get(1)
-                ProcessedCCD = read_ccd_data(originalCcdData1,originalCcdData2)
-                ccd_data1 = ProcessedCCD[0]  # 读取CCD值，存储到数组
-                ccd_data2 = ProcessedCCD[1]  # 读取CCD值，存储到数组
+                originalCcdData1 = ccd.get(0) # 读取原始的CCD数据
+                originalCcdData2 = ccd.get(1) # 读取原始的CCD数据
+                ProcessedCCD = read_ccd_data(originalCcdData1,originalCcdData2,T1,T2)
+
+                ccd_data1 = ProcessedCCD[0]  # 处理后的二值化CCD数据
+                ccd_data2 = ProcessedCCD[1]  # 处理后的二值化CCD数据
                 trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
                 trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
                 lastLastMid_line1 = lastMid_line1  # 上上次的中线位置，计算曲率用
@@ -286,10 +299,10 @@ while True:
                 lastWidth2 = roadWidth2  # 上一次CCD2的道路宽度，用于判断避障和环中点
                 roadWidth1 = abs(left_edge1 - right_edge1)  # 这一次的道路宽度
                 roadWidth2 = abs(left_edge2 - right_edge2)  # 这一次的道路宽度
-                fiveTimesRoadWidth1 = [roadWidth1] + fiveTimesRoadWidth1[:-1]  # 从[0]到[4]分别存储了最新五次的CCD1的道路宽度
-                fiveTimesRoadWidth2 = [roadWidth2] + fiveTimesRoadWidth2[:-1]  # 从[0]到[4]分别存储了最新五次的CCD2的道路宽度
-                fiveTimesMidline1 = [midline1] + fiveTimesMidline1[:-1]  # 从[0]到[4]分别存储了最新五次的CCD1的道路宽度
-                fiveTimesMidline2 = [midline2] + fiveTimesMidline2[:-1]  # 从[0]到[4]分别存储了最新五次的CCD2的道路宽度
+                fiveTimesRoadWidth1 = [roadWidth1] + fiveTimesRoadWidth1[:-1]  # 最新五次的CCD1的道路宽度
+                fiveTimesRoadWidth2 = [roadWidth2] + fiveTimesRoadWidth2[:-1]  # 最新五次的CCD2的道路宽度
+                fiveTimesMidline1 = [midline1] + fiveTimesMidline1[:-1]  # 最新五次的CCD1的道路宽度
+                fiveTimesMidline2 = [midline2] + fiveTimesMidline2[:-1]  # 最新五次的CCD2的道路宽度
                 curvature = abs(calculate_curvature(lastLastMid_line1, lastMid_line1, midline1))  # 赛道曲率
 
                 if curvature < 5:
