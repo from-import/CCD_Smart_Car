@@ -146,7 +146,6 @@ while True:
         from Find_Barrier import find_barrier
         from CCD_Tool import *
         from Find_Circle import *
-        from Old_Get_CCD import read_ccd_data
         from Old_Motor_Origin import control_motor, control_encoder
         from Old_Motor_Servo import set_servo_angle, duty_angle
         from Screen import init_Screen
@@ -269,9 +268,11 @@ while True:
         while True:
             if ticker_flag:
                 """基本数据采集部分"""
-                Allccd = read_ccd_data(ccd)
-                ccd_data1 = Allccd[0]  # 读取CCD值，存储到数组
-                ccd_data2 = Allccd[1]  # 读取CCD值，存储到数组
+                originalCcdData1 = ccd.get(0)
+                originalCcdData2 = ccd.get(1)
+                ProcessedCCD = read_ccd_data(originalCcdData1,originalCcdData2)
+                ccd_data1 = ProcessedCCD[0]  # 读取CCD值，存储到数组
+                ccd_data2 = ProcessedCCD[1]  # 读取CCD值，存储到数组
                 trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
                 trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
                 lastLastMid_line1 = lastMid_line1  # 上上次的中线位置，计算曲率用

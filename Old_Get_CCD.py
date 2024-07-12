@@ -3,6 +3,104 @@ from seekfree import TSL1401
 
 T_old = 400
 
+
+def get_mid(a, b, c):
+    # 获取三个值中的中间值。
+    x = 0
+    if a > b:
+        x = b
+        b = a
+        a = x
+    if b > c:
+        x = c
+        c = b
+        b = x
+    if a > b:
+        x = b
+        b = a
+        a = x
+    return b
+
+
+def bin_ccd_filter(data):
+    # 中值滤波函数，对 CCD 数据进行中值滤波处理。
+    filtered_data = []
+    # 对128个点进行平滑处理输出
+    for i in range(1, len(data) - 1):
+        mid_value = get_mid(data[i - 1], data[i], data[i + 1])
+        filtered_data.append(mid_value)
+    # 处理边界条件：保留第一个和最后一个数据点
+    filtered_data.insert(0, data[0])
+    filtered_data.append(data[-1])
+    return filtered_data
+
+
+"""
+二值化处理函数，对 CCD 数据进行二值化处理。
+
+参数:
+data (list): CCD 数据列表。
+all_black_difference_value (float): 全黑时的偏差值，用于判断阈值。
+T_old (float): 上一次的阈值，用于全黑情况下的处理。
+
+返回:
+list: 二值化后的 CCD 数据。
+"""
+
+
+def binary_thresholding(data, all_black_difference_value=300):
+    global T_old
+
+    # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
+    # 找出数据列表中的最大值和最小值，确定数据的动态范围。
+    max_val = max(data)
+    min_val = min(data)
+    # print(error)
+
+    # 第二步：判断最大值和最小值的偏差是否大于全黑时的偏差值
+    # 如果差值小于或等于这个偏差值，则认为数据是全黑的
+    # 在全黑情况下，使用上一次的阈值(T_old)进行二值化，避免在全黑情况下计算新的阈值
+    if (max_val - min_val) <= all_black_difference_value:
+        return [0 if x <= T_old else 1 for x in data]
+
+    # 第三步：初始估计阈值
+    T = (max_val + min_val) / 2
+
+    while True:
+        """
+        第四步：二值化处理图像，并产生两个组数据
+        进入迭代循环，不断调整阈值 T，以逐步逼近最佳阈值。
+        将数据分为两组：大于当前阈值 T 的数据 (sum_h) 和小于等于当前阈值 T 的数据 (sum_l)。
+        分别计算两组数据的平均值：max_ave 和 min_ave, 更新阈值为两组平均值的平均值 T_last。
+        如果新阈值 T_last 与旧阈值 T 的差值小于一个很小的数（如 1e-6），则认为阈值已稳定，终止迭代。
+        迭代过程确保阈值在数据分布的基础上进行动态调整，逐步逼近最佳阈值。
+        """
+
+        sum_h = [x for x in data if x > T]
+        sum_l = [x for x in data if x <= T]
+        if len(sum_h) == 0:
+            max_ave = 0
+        else:
+            max_ave = sum(sum_h) / len(sum_h)
+        if len(sum_l) == 0:
+            min_ave = 0
+        else:
+            min_ave = sum(sum_l) / len(sum_l)
+
+        # 第六步：计算最终的阈值
+        T_last = (max_ave + min_ave) / 2
+
+        # 检查阈值是否稳定
+        if abs(T_last - T) < 1e-6:
+            break
+
+        T = T_last
+        T_old = T
+
+    # 返回二值化后的数据
+    return [0 if x <= T_last else 1 for x in data]
+
+
 """
 函数名：read_ccd_data
 函数作用：读取 CCD 数据并进行滤波和二值化处理。
@@ -11,103 +109,9 @@ T_old = 400
 
 返回: tuple: 包含处理后的 CCD 数据1 和 CCD 数据2 及其二值化结果。
 """
-def read_ccd_data(ccd):
-    def get_mid(a, b, c):
-        # 获取三个值中的中间值。
-        x = 0
-        if a > b:
-            x = b
-            b = a
-            a = x
-        if b > c:
-            x = c
-            c = b
-            b = x
-        if a > b:
-            x = b
-            b = a
-            a = x
-        return b
 
-    def bin_ccd_filter(data):
-        # 中值滤波函数，对 CCD 数据进行中值滤波处理。
-        filtered_data = []
-        # 对128个点进行平滑处理输出
-        for i in range(1, len(data) - 1):
-            mid_value = get_mid(data[i - 1], data[i], data[i + 1])
-            filtered_data.append(mid_value)
-        # 处理边界条件：保留第一个和最后一个数据点
-        filtered_data.insert(0, data[0])
-        filtered_data.append(data[-1])
-        return filtered_data
 
-    """
-    二值化处理函数，对 CCD 数据进行二值化处理。
-
-    参数:
-    data (list): CCD 数据列表。
-    all_black_difference_value (float): 全黑时的偏差值，用于判断阈值。
-    T_old (float): 上一次的阈值，用于全黑情况下的处理。
-
-    返回:
-    list: 二值化后的 CCD 数据。
-    """
-    def binary_thresholding(data, all_black_difference_value=300):
-        global T_old
-
-        # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
-        # 找出数据列表中的最大值和最小值，确定数据的动态范围。
-        max_val = max(data)
-        min_val = min(data)
-        #print(error)
-
-        # 第二步：判断最大值和最小值的偏差是否大于全黑时的偏差值
-        # 如果差值小于或等于这个偏差值，则认为数据是全黑的
-        # 在全黑情况下，使用上一次的阈值(T_old)进行二值化，避免在全黑情况下计算新的阈值
-        if (max_val - min_val) <= all_black_difference_value:
-            return [0 if x <= T_old else 1 for x in data]
-
-        # 第三步：初始估计阈值
-        T = (max_val + min_val) / 2
-
-        while True:
-            """
-            第四步：二值化处理图像，并产生两个组数据
-            进入迭代循环，不断调整阈值 T，以逐步逼近最佳阈值。
-            将数据分为两组：大于当前阈值 T 的数据 (sum_h) 和小于等于当前阈值 T 的数据 (sum_l)。
-            分别计算两组数据的平均值：max_ave 和 min_ave, 更新阈值为两组平均值的平均值 T_last。
-            如果新阈值 T_last 与旧阈值 T 的差值小于一个很小的数（如 1e-6），则认为阈值已稳定，终止迭代。
-            迭代过程确保阈值在数据分布的基础上进行动态调整，逐步逼近最佳阈值。
-            """
-
-            sum_h = [x for x in data if x > T]
-            sum_l = [x for x in data if x <= T]
-            if len(sum_h) == 0:
-                max_ave = 0
-            else:
-                max_ave = sum(sum_h) / len(sum_h)
-            if len(sum_l) == 0:
-                min_ave = 0
-            else:
-                min_ave = sum(sum_l) / len(sum_l)
-
-            # 第六步：计算最终的阈值
-            T_last = (max_ave + min_ave) / 2
-
-            # 检查阈值是否稳定
-            if abs(T_last - T) < 1e-6:
-                break
-
-            T = T_last
-            T_old = T
-
-        # 返回二值化后的数据
-        return [0 if x <= T_last else 1 for x in data]
-
-    # 读取 CCD 数据
-    ccd_data1 = ccd.get(0)
-    ccd_data2 = ccd.get(1)
-
+def read_ccd_data(ccd_data1, ccd_data2):
     # CCD 数据滤波
     filtered_ccd1 = bin_ccd_filter(ccd_data1)
     filtered_ccd2 = bin_ccd_filter(ccd_data2)
