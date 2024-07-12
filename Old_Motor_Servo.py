@@ -20,7 +20,7 @@ def calculate_angle(offset):
     else:
         nature = 0
 
-    a = 11.6015
+    a = 10.6015
     offset = abs(offset)
     if 0 <= offset < 5:
         offset = 1.6015 * offset
@@ -66,25 +66,29 @@ rightAngel = 88
 def set_servo_angle(pwm_servo, offset, flag):
     angle = calculate_angle(offset)
 
-    if flag == "isCircle":
-        angle = calculate_angle(middleAngel)  # 入环标志位，保持直线行驶
+    if flag == "stop":
+        angle = 101
 
-    if flag == "Crossing":
-        angle = calculate_angle(middleAngel)
+    if flag == "isCircle":
+        angle = 101  # 入环标志位，保持直线行驶
+
+    if flag == "onCrossing":
+        angle = 101
 
     if flag == "goLeftCircle":
-        angle = calculate_angle(leftAngel)
+        angle = 112
 
     if flag == "goRightCircle":
-        angle = calculate_angle(rightAngel)
+        angle = 88
 
     if flag == "outLeftCircle":
-        angle = calculate_angle(leftAngel)
+        angle = 112
 
     if flag == "outRightCircle":
-        angle = calculate_angle(rightAngel)
+        angle = 88
 
     duty_servo = duty_angle(angle)  # 获取舵机中值角度对应占空比
     pwm_servo.duty_u16(duty_servo)  # 更新舵机PWM
     gc.collect()
     return angle
+

@@ -1,5 +1,5 @@
 # 下面这一行当调试代码的时候取消掉注释，方便找语法错误所在
-from deleteME import IMU660RA, Pin, TSL1401, WIRELESS_UART, MOTOR_CONTROLLER, encoder, PWM, KEY_HANDLER, ticker
+# from deleteME import IMU660RA, Pin, TSL1401, WIRELESS_UART, MOTOR_CONTROLLER, encoder, PWM, KEY_HANDLER, ticker
 from machine import *
 from smartcar import *
 from seekfree import *
@@ -128,12 +128,15 @@ goLeftCircle / goRightCircle：左/右强制入环：舵机强制打角
 outLeftCircle / outRightCircle：左/右强制出环：舵机强制打角
 alreadyOutCircle：刚出环，需要通过ccd2循迹
 crossing：十字路口
+onCrossing:十字路口中间
+outCrossing:刚出十字路口
 lv1Bend：低级弯道
 lv2Bend：初级弯道
 lv3Bend：高级弯道
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 while True:
     if ticker_flag:
+        print(flag)
         # 初始确定CCD1和CCD2的阈值T1和T2
         if Statu == 1 and ccdThresholdDetermination == 0:
             ccdThresholdDetermination = 1
@@ -147,12 +150,11 @@ while True:
             T2 = T2 / 10.0
 
         """基本数据采集部分"""
-        originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
-        originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
+        originalCcdData1 = ccd.get(1)  # 读取原始的CCD数据
+        originalCcdData2 = ccd.get(0)  # 读取原始的CCD数据
         ProcessedCCD = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2)
         ccd_data1 = ProcessedCCD[0]  # 处理后的二值化CCD数据
         ccd_data2 = ProcessedCCD[1]  # 处理后的二值化CCD数据
-
         trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
         trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
         lastLastMid_line1 = lastMid_line1  # 上上次的中线位置，计算曲率用
@@ -172,7 +174,7 @@ while True:
         fiveTimesMidline1 = [midline1] + fiveTimesMidline1[:-1]  # 最新五次的CCD1的道路宽度
         fiveTimesMidline2 = [midline2] + fiveTimesMidline2[:-1]  # 最新五次的CCD2的道路宽度
         curvature = abs(calculate_curvature(lastLastMid_line1, lastMid_line1, midline1))  # 赛道曲率
-
+        """
         if curvature < 5:
             flag = "straight"
         elif curvature > 5:
@@ -181,21 +183,29 @@ while True:
             flag = "lv2Bend"
         elif curvature > 15:
             flag = "lv3Bend"
-
-        """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移"""
+            
+        # 直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移
         if abs(ccdSuper2) < 6 and flag == "straight":
             flag = "speedUP"
-
         if abs(ccdSuper2) >= 6 and flag == "speedUP":
             flag = "straight"
+        """
+        if abs(midline1 - midline2) <= 5:  # 直线的判别，连续五次都找到直线则判断为目前处于直线状态
+            midline1EqualsMidline2 += 1
+            if midline1EqualsMidline2 == 5:
+                flag = "straight"
+        else:
+            midline1EqualsMidline2 = 0
 
-        """起跑线检测模块 """
+
+
+
+        # 起跑线检测模块
         if find_start_line(ccd_data1):
             Statu = 0
 
         """
-        十字路口执行模块
-        分为三个区间
+        十字路口判别模块,分为三个区间
         step1：CCD1直道，CCD2全白
         step2：CCD1全白,CCD2全白
         step3：CCD1全白，CCD2直道
@@ -208,15 +218,27 @@ while True:
         else:
             crossingTime = 0
 
+        onCrossing = on_detect_intersection(ccd_data1, ccd_data2)
+        if onCrossing:
+            flag = "onCrossing"
+
         outCrossing = out_detect_intersection(ccd_data1, ccd_data2, lastMid_line1, lastMid_line2)
         if outCrossing:
-            outCrossingTime += 1
-            if outCrossingTime == 2:
-                flag = "straight"
-        else:
-            crossingTime = 0
+            flag = "outCrossing"
+
+        if flag == "crossing":
+            ccdSuper = ccdSuper1
+        if flag == "onCrossing":
+            ccdSuper = 0
+        if flag == "outCrossing":
+            ccdSuper = ccdSuper1
+
+
+
 
         """环岛部分"""
+
+        """
         if leftOrRight == "nothing":  # 防止在找到入环标志后，在后续的跑道中再次误判圆环
             realIsCircleNow, realLeftOrRight = is_circle(ccd_data1, ccd_data2)
             if realIsCircleNow:
@@ -228,7 +250,7 @@ while True:
             else:
                 isCircleNowTimes = 0
 
-        """第一步，寻找入环标志：左侧和中间同时出现白色区域，即白黑白"""
+        # 第一步，寻找入环标志：左侧和中间同时出现白色区域，即白黑白
         if (isCircleNow == True) and (goCircle == False):
             # 防止二次判环将goCircle的标志位刷掉，后续赛道存在多个环可以更改此处逻辑
             # 如果goCircle == 1，代表在之前已经检测到环
@@ -236,7 +258,7 @@ while True:
             flag = "isCircle"
             time.sleep(2)  # 睡眠1s来防止刚检测到入环标志就判定为入环
 
-        """第二步，找到环中点，进行强制打角"""
+        # 第二步，找到环中点，进行强制打角
         if checkCircle:
             filled_midline1 = fill_line(ccd_data1, leftOrRight, checkCircle)  # 确定补线后的中线
             ccdSuper = filled_midline1 - 64  # 补线状态下的误差值,覆盖之前的ccdSuper,防止被前半段圆环误判左转
@@ -253,7 +275,7 @@ while True:
                 time.sleep(2)
                 flag = "straight"
 
-        """第三步，在完成环岛动作后，一旦找到十字路口的样式,代表找到了出环位置(左右均全白),此时强制打角出环,然后调用ccd_data2进行直线循迹"""
+        # 第三步，在完成环岛动作后，一旦找到十字路口的样式,代表找到了出环位置(左右均全白),此时强制打角出环,然后调用ccd_data2进行直线循迹
         outCircle = (detect_intersection(ccd_data1, ccd_data2, lastMid_line1))  # 十字路口判别模式
         if outCircle and goCircle:
             outCircleTimes += 1
@@ -268,35 +290,20 @@ while True:
                 time.sleep(2)
                 outCircleTimes = 0
 
-        """第四步，切换ccd2来读取数据(ccd2读的更远，不会被干扰)，确保成功进入直道"""
+        # 第四步，切换ccd2来读取数据(ccd2读的更远，不会被干扰)，确保成功进入直道
         if leftOrRight != "nothing" and alreadyOutCircle:  # 已经完成了入环判断，入环打角，出环打角
             flag = "alreadyOutCircle"
             ccdSuper = ccdSuper2  # 切换ccd2读取的数据来循迹，因为ccd1会被环岛白色区域误判
             if abs(ccdSuper) < 8 and abs(ccdSuper2) < 8:
                 leftOrRight = "alreadyFinishedCircle"  # 当两个ccd都读到直道，将leftOrRight清除，退出环岛逻辑
 
-        """第五步，当ccd1和ccd2都读到了直道，说明已经完全出环"""
+        # 第五步，当ccd1和ccd2都读到了直道，说明已经完全出环
         if abs(roadWidth1 - roadWidth2 <= 10):
             alreadyOutCircleTimes = alreadyOutCircleTimes + 1
             if alreadyOutCircleTimes == 3:
                 flag = "straight"
                 alreadyOutCircleTimes = 0
-
-        """避障部分
-        barrierNow, barrierLocation = find_barrier(ccd_data1, lastWidth1)
-        if barrierNow:
-            if barrierLocation == "left":
-                pass
-            if barrierLocation == "right":
-                pass
         """
-
-        if abs(midline1 - midline2) <= 5:  # 直线的判别，连续五次都找到直线则判断为目前处于直线状态
-            midline1EqualsMidline2 += 1
-            if midline1EqualsMidline2 == 5:
-                flag = "straight"
-        else:
-            midline1EqualsMidline2 = 0
 
         # 按键逻辑
         key_data = key.get()  # 获取按键数据
@@ -325,6 +332,9 @@ while True:
             # 按下后不执行key.clear(4)，电机启动，可一直保持key_4 == 1
             key_4 = 1  # 按键按下后将 key_4 设置为 1
             Statu = 1
+
+        if Statu == 0:
+            flag = "stop"
 
         ticker_flag = False  # 定时器关断标志
 

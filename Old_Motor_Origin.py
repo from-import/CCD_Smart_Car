@@ -55,12 +55,12 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
     global encl_data, encr_data
     global Stop
 
-    Motor_P = 15
-    Motor_I = 6.5
+    Motor_P = 10
+    Motor_I = 4
     Motor_D = 0
 
-    speed_L = 45  # flag = 0
-    speed_R = 45
+    speed_L = 35  # flag = 0
+    speed_R = 35
     """
     else:
         speed_L = 50

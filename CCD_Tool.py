@@ -1,6 +1,7 @@
 def hah():
     pass
 
+
 """
 find_road_edges : 查找道路左侧和右侧的边界位置，并计算中线位置。
 说明：在首行引线检测正确的前提下具有较强的抗干扰性，能更有效地消除十字垂直交叉黑色引线的干扰以及引线外黑色噪点的影响
@@ -114,6 +115,14 @@ def detect_intersection(ccd1, ccd2, lastMid_line1):
     check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]  # 检查CCD2特定位置的元素是否均为1
     if all(ccd2[i] == 1 for i in check_indices):
         if width1 < 60:
+            return True
+    return False
+
+
+def on_detect_intersection(ccd1, ccd2):
+    check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]
+    if all(ccd2[i] == 1 for i in check_indices):
+        if all(ccd1[i] == 1 for i in check_indices):
             return True
     return False
 
