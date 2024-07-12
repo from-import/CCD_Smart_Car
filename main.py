@@ -31,7 +31,6 @@ Tips: 初始化部分
 CCD 初始化
 调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
 默认参数为 1 调整这个参数相当于调整曝光时间倍数,这里填了 10 代表 10 次 capture/read 调用才会更新一次数据
-调用案例：ccd_data1, ccd_data2 = read_ccd_data(ccd)
 """
 ccd = TSL1401(1)  # 调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
 ccd.set_resolution(TSL1401.RES_12BIT)  # 调整 CCD 的采样精度为 12bit
@@ -166,7 +165,6 @@ while True:
         CCD 初始化
         调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
         默认参数为 1 调整这个参数相当于调整曝光时间倍数,这里填了 10 代表 10 次 capture/read 调用才会更新一次数据
-        调用案例：ccd_data1, ccd_data2 = read_ccd_data(ccd)
         """
         ccd = TSL1401(1)  # 调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
         ccd.set_resolution(TSL1401.RES_12BIT)  # 调整 CCD 的采样精度为 12bit
@@ -217,6 +215,7 @@ while True:
         Tips: 初始化部分（舵机：Middle:101，LeftMax:117，RightMax:88）
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
         ccdSuper = angle = key_4 = Key_1 = Key_2 = Statu = lastLastWidth1 = isCircleNow = crossingTime = outCrossingTime = 0
+        T1 = T2 = 0
         isCrossing = roadWidth1 = roadWidth2 = outCircleTimes = alreadyOutCircleTimes = isCircleNowTimes = 0
         left_edge = right_edge = barrierLocation = alreadyOutCircle = lastWidth1 = crossing = outCircle = checkCircle = 0
         goCircle = findCircleTimes = barrierNow = roadWidth = midline1EqualsMidline2 = ccdThresholdDetermination = 0
@@ -267,7 +266,7 @@ while True:
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
         while True:
             if ticker_flag:
-                # 初始确定CCD1和CCD2的阈值
+                # 初始确定CCD1和CCD2的阈值T1和T2
                 if Statu == 1 and ccdThresholdDetermination == 0:
                     ccdThresholdDetermination = 1
                     T1 = T2 = 0
@@ -280,10 +279,9 @@ while True:
                     T2 = T2/3.0
 
                 """基本数据采集部分"""
-                originalCcdData1 = ccd.get(0) # 读取原始的CCD数据
-                originalCcdData2 = ccd.get(1) # 读取原始的CCD数据
-                ProcessedCCD = read_ccd_data(originalCcdData1,originalCcdData2,T1,T2)
-
+                originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
+                originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
+                ProcessedCCD = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2)
                 ccd_data1 = ProcessedCCD[0]  # 处理后的二值化CCD数据
                 ccd_data2 = ProcessedCCD[1]  # 处理后的二值化CCD数据
                 trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
@@ -455,7 +453,7 @@ while True:
             lcd.str24(0, 24 * 1, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
             lcd.str24(0, 24 * 2, "midline1={:>.2f}.".format(midline1), 0xFFFF)
             lcd.str24(0, 24 * 3, "roadWidth={:>.2f}.".format(roadWidth1), 0xFFFF)
-            lcd.str24(0, 24 * 4, f"{leftOrRight}", 0xFFFF)
+            lcd.str24(0, 24 * 4, f"leftOrRight:{leftOrRight}", 0xFFFF)
             lcd.str24(0, 24 * 5, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
             lcd.str24(0, 24 * 6, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
             lcd.str24(0, 24 * 7, "isCrossing={:>.2f}.".format(isCrossing), 0xFFFF)
@@ -468,188 +466,4 @@ while True:
                 pit1.stop()
                 print("Ticker stop.")
                 break
-
-
-        trueWidth1 = sum(value == 1 for value in ccd_data1)  # 计算ccd_data1值为 1 的元素总数
-        trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
-        lastLastMid_line1 = lastMid_line1  # 上上次的中线位置，计算曲率用
-        lastMid_line1 = midline1  # 上次的中线位置
-        left_edge1, right_edge1, midline1 = find_road_edges(ccd_data1, midline1)  # 计算左右边界与中线
-        left_edge2, right_edge2, midline2 = find_road_edges(ccd_data2, midline2)  # 计算左右边界与中线
-        ccdSuper1 = midline1 - 64  # CCD1的误差值
-        ccdSuper2 = midline2 - 64  # CCD2的误差值
-        ccdSuper = 0.9 * ccdSuper1 + 0.1 * ccdSuper2  # 权重经验公式，来自均速3.8m/s的CCD车
-        lastWidth1 = roadWidth1  # 上一次CCD1的道路宽度，用于判断避障和环中点
-        lastWidth2 = roadWidth2  # 上一次CCD2的道路宽度，用于判断避障和环中点
-        roadWidth1 = abs(left_edge1 - right_edge1)  # 这一次的道路宽度
-        roadWidth2 = abs(left_edge2 - right_edge2)  # 这一次的道路宽度
-        fiveTimesRoadWidth1 = [roadWidth1] + fiveTimesRoadWidth1[:-1]  # 从[0]到[4]分别存储了最新五次的CCD1的道路宽度
-        fiveTimesRoadWidth2 = [roadWidth2] + fiveTimesRoadWidth2[:-1]  # 从[0]到[4]分别存储了最新五次的CCD2的道路宽度
-        fiveTimesMidline1 = [midline1] + fiveTimesMidline1[:-1]  # 从[0]到[4]分别存储了最新五次的CCD1的道路宽度
-        fiveTimesMidline2 = [midline2] + fiveTimesMidline2[:-1]  # 从[0]到[4]分别存储了最新五次的CCD2的道路宽度
-        curvature = abs(calculate_curvature(lastLastMid_line1, lastMid_line1, midline1))  # 赛道曲率
-
-        if curvature < 5:
-            flag = "straight"  # 使用elif节省运行时间
-        elif curvature > 5:
-            flag = "lv1Bend"
-        elif curvature > 10:
-            flag = "lv2Bend"
-        elif curvature > 15:
-            flag = "lv3Bend"
-
-        """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移
-        if abs(ccdSuper2) < 6 and flag == "straight":
-            flag = "speedUP"
-        """
-        if abs(ccdSuper2) >= 6 and flag == "speedUP":
-            flag = "straight"
-
-        """十字路口执行模块"""
-        isCrossing = detect_intersection(ccd_data1, ccd_data2)
-        if isCrossing:
-            crossingTime += 1
-            if crossingTime == 3:
-                flag = "crossing"
-        else:
-            crossingTime = 0
-
-        outCrossing = detect_intersection(ccd_data2, ccd_data1)  # 没写反
-        if outCrossing:
-            outCrossingTime += 1
-            if outCrossingTime == 2:
-                flag = "straight"
-        else:
-            crossingTime = 0
-
-        """环岛部分"""
-        if leftOrRight == "nothing":  # 防止在找到入环标志后，在后续的跑道中再次误判圆环
-            realIsCircleNow, realLeftOrRight = is_circle(ccd_data1, ccd_data2)
-            if realIsCircleNow:
-                isCircleNowTimes += 1
-                if isCircleNowTimes == 3:  # 连续三次检测到环，则设置为环
-                    isCircleNow, leftOrRight = is_circle(ccd_data1, ccd_data2)  # isCircleNow为是否检测到环，leftOrRight为左环还是右环
-                    isCircleNowTimes = 0
-
-            else:
-                isCircleNowTimes = 0
-
-        """第一步，寻找入环标志：左侧和中间同时出现白色区域，即白黑白"""
-        if (isCircleNow == True) and (goCircle == False):
-            # 防止二次判环将goCircle的标志位刷掉，后续赛道存在多个环可以更改此处逻辑
-            # 如果goCircle == 1，代表在之前已经检测到环
-            checkCircle = 1  # 将checkCircle置1，代表进入入环状态
-            flag = "isCircle"
-            time.sleep(2)  # 睡眠1s来防止刚检测到入环标志就判定为入环
-
-        """第二步，找到环中点，进行强制打角"""
-        if checkCircle:
-            filled_midline1 = fill_line(ccd_data1, leftOrRight, checkCircle)  # 确定补线后的中线
-            ccdSuper = filled_midline1 - 64  # 补线状态下的误差值,覆盖之前的ccdSuper,防止被前半段圆环误判左转
-            print(f"已进入入环状态，此时补线后的中线:{filled_midline1}")
-            goCircle = Go_circle_now(ccd_data1, ccd_data2, lastWidth1)  # 如果检测到环中点，将goCircle置为True
-            if goCircle:
-                # 在完成入环后,进入基础的循迹逻辑,环岛运行过程中一般是丢一边线的单边循迹，通过强制打角即可进入环岛
-                if leftOrRight == "left":
-                    flag = "goLeftCircle"
-                    checkCircle = 0
-                if leftOrRight == "right":
-                    flag = "goRightCircle"
-                    checkCircle = 0
-                time.sleep(2)
-                flag = "straight"
-
-        """第三步，在完成环岛动作后，一旦找到十字路口的样式,代表找到了出环位置(左右均全白),此时强制打角出环,然后调用ccd_data2进行直线循迹"""
-        outCircle = (detect_intersection(ccd_data1,ccd_data2))  # 十字路口判别模式
-        if outCircle and goCircle:
-            outCircleTimes += 1
-            if outCircleTimes == 2:
-                print("找到十字路口")
-                alreadyOutCircle = 1  # 每次只进行一次出环动作
-                goCircle = 0  # 防止多次识别为出环
-                if leftOrRight == "left":
-                    flag = "outLeftCircle"
-                if leftOrRight == "right":
-                    flag = "outRightCircle"
-                time.sleep(2)
-                outCircleTimes = 0
-
-        """第四步，切换ccd2来读取数据(ccd2读的更远，不会被干扰)，确保成功进入直道"""
-        if leftOrRight != "nothing" and alreadyOutCircle:  # 已经完成了入环判断，入环打角，出环打角
-            flag = "alreadyOutCircle"
-            ccdSuper = ccdSuper2  # 切换ccd2读取的数据来循迹，因为ccd1会被环岛白色区域误判
-            if abs(ccdSuper) < 8 and abs(ccdSuper2) < 8:
-                leftOrRight = "alreadyFinishedCircle"  # 当两个ccd都读到直道，将leftOrRight清除，退出环岛逻辑
-
-        """第五步，当ccd1和ccd2都读到了直道，说明已经完全出环"""
-        if abs(roadWidth1 - roadWidth2 <= 10):
-            alreadyOutCircleTimes = alreadyOutCircleTimes + 1
-            if alreadyOutCircleTimes == 3:
-                flag = "straight"
-                alreadyOutCircleTimes = 0
-
-        """避障部分"""
-        barrierNow, barrierLocation = find_barrier(ccd_data1, lastWidth1)
-        if barrierNow:
-            if barrierLocation == "left":
-                pass
-            if barrierLocation == "right":
-                pass
-
-        if abs(midline1 - midline2) <= 5:  # 直线的判别，连续五次都找到直线则判断为目前处于直线状态
-            midline1EqualsMidline2 += 1
-            if midline1EqualsMidline2 == 5:
-                flag = "straight"
-        else:
-            midline1EqualsMidline2 = 0
-
-        # 按键逻辑
-        key_data = key.get()  # 获取按键数据
-        key_1, key_2, key_3, key_4 = key_data  # 解包按键数据
-
-        if key_data[0]:
-            # 当1被按下，存储当前的全部ccd_data到列表中
-            ccdAllData1.append(ccd_data1)
-            ccdAllData2.append(ccd_data2)
-            print(f"已经将当前的ccd1和ccd2分别添加到列表中,共添加了{len(ccdAllData1)}次")
-            key.clear(1)
-
-        if key_data[1]:
-            # 当2被按下，打印之前全部存储的ccd_data
-            print("ccd_data1:")
-            print(ccdAllData1)
-            print("\nccd_data2:")
-            print(ccdAllData2)
-            key.clear(2)
-
-        if key_data[2]:
-            # 暂时无用处
-            print("key3 = {:>6d}.".format(key_data[2]))
-            key.clear(3)
-
-        if key_data[3]:
-            # 按下后不执行key.clear(4)，电机启动，可一直保持key_4 == 1
-            key_4 = 1  # 按键按下后将 key_4 设置为 1
-            Statu = 1
-
-        ticker_flag = False  # 定时器关断标志
-
-    # 屏幕显示
-    lcd.str24(0, 24 * 0, f"flag : {flag}", 0xFFFF)
-    lcd.str24(0, 24 * 1, "offset={:>.2f}.".format(ccdSuper), 0xFFFF)
-    lcd.str24(0, 24 * 2, "midline1={:>.2f}.".format(midline1), 0xFFFF)
-    lcd.str24(0, 24 * 3, "roadWidth={:>.2f}.".format(roadWidth1), 0xFFFF)
-    lcd.str24(0, 24 * 4, f"{leftOrRight}", 0xFFFF)
-    lcd.str24(0, 24 * 5, "isCircleNow={:>.2f}.".format(isCircleNow), 0xFFFF)
-    lcd.str24(0, 24 * 6, "goCircle={:>.2f}.".format(goCircle), 0xFFFF)
-    lcd.str24(0, 24 * 7, "isCrossing={:>.2f}.".format(isCrossing), 0xFFFF)
-    lcd.str24(0, 24 * 8, "alreadyOutCircle={:>.2f}.".format(alreadyOutCircle), 0xFFFF)
-    lcd.str24(0, 24 * 9, f"barrierLocation={barrierLocation}.", 0xFFFF)
-    gc.collect()
-
-    # 按键跳出程序
-    if end_switch.value() != end_state:
-        pit1.stop()
-        print("Ticker stop.")
-        break
 
