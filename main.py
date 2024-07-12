@@ -1,19 +1,17 @@
 # 下面这一行当调试代码的时候取消掉注释，方便找语法错误所在
-# from deleteME import Pin, TSL1401, WIRELESS_UART, MOTOR_CONTROLLER, encoder, PWM, KEY_HANDLER, ticker
-
+from deleteME import IMU660RA, Pin, TSL1401, WIRELESS_UART, MOTOR_CONTROLLER, encoder, PWM, KEY_HANDLER, ticker
 from machine import *
 from smartcar import *
 from seekfree import *
 from display import *
 import gc
 import time
-from Find_Barrier import find_barrier
 from CCD_Tool import *
 from Find_Circle import *
 from Old_Get_CCD import read_ccd_data, threshold_determination
 from Old_Motor_Origin import control_motor, control_encoder
 from Old_Motor_Servo import set_servo_angle, duty_angle
-from Screen import init_Screen
+from Old_Screen import init_Screen
 
 """SMGG.Tips:
 main主要进行初始化，后面的算法处理单独封装，以达到可读，参数调整方便的效果"""
@@ -34,9 +32,9 @@ CCD 初始化
 """
 ccd = TSL1401(1)  # 调用 TSL1401 模块获取 CCD 实例,参数是采集周期 调用多少次 capture/read 更新一次数据
 ccd.set_resolution(TSL1401.RES_12BIT)  # 调整 CCD 的采样精度为 12bit
-wireless = WIRELESS_UART(460800)  # 实例化 WIRELESS_UART 模块 参数是波特率
-wireless.send_str("Hello World.\r\n")  # 测试无线正常
-time.sleep_ms(500)
+# wireless = WIRELESS_UART(460800)  # 实例化 WIRELESS_UART 模块 参数是波特率
+# wireless.send_str("Hello World.\r\n")  # 测试无线正常
+# time.sleep_ms(500)
 
 """
 电机 Motor 初始化,示例调用:
@@ -77,6 +75,12 @@ flag 初始化
 ticker_flag = False  # 定时器数据建立
 ticker_count = 0  # 时间延长标志（使用方法见encoder例程）
 
+"""
+imu 初始化
+"""
+# 调用 IMU660RA 模块获取 IMU660RA 实例
+imu = IMU660RA()
+
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 初始化部分（舵机：Middle:101，LeftMax:117，RightMax:88）
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -84,7 +88,7 @@ ccdSuper = angle = key_4 = Key_1 = Key_2 = Statu = lastLastWidth1 = isCircleNow 
 isCrossing = roadWidth1 = roadWidth2 = outCircleTimes = alreadyOutCircleTimes = isCircleNowTimes = 0
 left_edge = right_edge = barrierLocation = alreadyOutCircle = lastWidth1 = crossing = outCircle = checkCircle = 0
 goCircle = findCircleTimes = barrierNow = roadWidth = midline1EqualsMidline2 = 0
-ccdThresholdDetermination = T1 = T2 = 0
+ccdThresholdDetermination = T1 = T2 = Yaw = lastMid_line2 = 0
 midline2 = midline1 = filled_mid_line = lastMid_line1 = lastLastMid_line1 = 64
 ccdAllData1 = ccd_data1 = ccdAllData2 = ccd_data2 = []
 fiveTimesRoadWidth1 = fiveTimesRoadWidth2 = fiveTimesMidline1 = fiveTimesMidline2 = [0, 0, 0, 0, 0]
@@ -134,13 +138,13 @@ while True:
         if Statu == 1 and ccdThresholdDetermination == 0:
             ccdThresholdDetermination = 1
             T1 = T2 = 0
-            for _ in range(0, 3):
+            for _ in range(0, 10):
                 originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
                 originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
                 T1 += threshold_determination(originalCcdData1)
                 T2 += threshold_determination(originalCcdData2)
-            T1 = T1 / 3.0
-            T2 = T2 / 3.0
+            T1 = T1 / 10.0
+            T2 = T2 / 10.0
 
         """基本数据采集部分"""
         originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
@@ -153,11 +157,12 @@ while True:
         trueWidth2 = sum(value == 1 for value in ccd_data2)  # 计算ccd_data2值为 1 的元素总数
         lastLastMid_line1 = lastMid_line1  # 上上次的中线位置，计算曲率用
         lastMid_line1 = midline1  # 上次的中线位置
+        lastMid_line2 = midline2  # 上次的中线位置
         left_edge1, right_edge1, midline1 = find_road_edges(ccd_data1, midline1)  # 计算左右边界与中线
         left_edge2, right_edge2, midline2 = find_road_edges(ccd_data2, midline2)  # 计算左右边界与中线
         ccdSuper1 = midline1 - 64  # CCD1的误差值
         ccdSuper2 = midline2 - 64  # CCD2的误差值
-        ccdSuper = 0.9 * ccdSuper1 + 0.1 * ccdSuper2  # 权重经验公式，来自均速3.8m/s的CCD车
+        ccdSuper = 0.8 * ccdSuper1 + 0.2 * ccdSuper2  # 权重经验公式，来自均速3.8m/s的CCD车
         lastWidth1 = roadWidth1  # 上一次CCD1的道路宽度，用于判断避障和环中点
         lastWidth2 = roadWidth2  # 上一次CCD2的道路宽度，用于判断避障和环中点
         roadWidth1 = abs(left_edge1 - right_edge1)  # 这一次的道路宽度
@@ -177,24 +182,33 @@ while True:
         elif curvature > 15:
             flag = "lv3Bend"
 
-        """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移
+        """直线加速模块,如果较远的ccd采集到的数据也为直线,则进入加速逻辑,直到较远的ccd采集到的中线发生较大偏移"""
         if abs(ccdSuper2) < 6 and flag == "straight":
             flag = "speedUP"
-        
+
         if abs(ccdSuper2) >= 6 and flag == "speedUP":
             flag = "straight"
-        """
 
-        """十字路口执行模块"""
-        isCrossing = detect_intersection(ccd_data1, ccd_data2)
+        """起跑线检测模块 """
+        if find_start_line(ccd_data1):
+            Statu = 0
+
+        """
+        十字路口执行模块
+        分为三个区间
+        step1：CCD1直道，CCD2全白
+        step2：CCD1全白,CCD2全白
+        step3：CCD1全白，CCD2直道
+        """
+        isCrossing = detect_intersection(ccd_data1, ccd_data2, lastMid_line1)
         if isCrossing:
             crossingTime += 1
-            if crossingTime == 3:
+            if crossingTime == 2:
                 flag = "crossing"
         else:
             crossingTime = 0
 
-        outCrossing = detect_intersection(ccd_data2, ccd_data1)  # 没写反
+        outCrossing = out_detect_intersection(ccd_data1, ccd_data2, lastMid_line1, lastMid_line2)
         if outCrossing:
             outCrossingTime += 1
             if outCrossingTime == 2:
@@ -240,7 +254,7 @@ while True:
                 flag = "straight"
 
         """第三步，在完成环岛动作后，一旦找到十字路口的样式,代表找到了出环位置(左右均全白),此时强制打角出环,然后调用ccd_data2进行直线循迹"""
-        outCircle = (detect_intersection(ccd_data1, ccd_data2))  # 十字路口判别模式
+        outCircle = (detect_intersection(ccd_data1, ccd_data2, lastMid_line1))  # 十字路口判别模式
         if outCircle and goCircle:
             outCircleTimes += 1
             if outCircleTimes == 2:
@@ -268,13 +282,14 @@ while True:
                 flag = "straight"
                 alreadyOutCircleTimes = 0
 
-        """避障部分"""
+        """避障部分
         barrierNow, barrierLocation = find_barrier(ccd_data1, lastWidth1)
         if barrierNow:
             if barrierLocation == "left":
                 pass
             if barrierLocation == "right":
                 pass
+        """
 
         if abs(midline1 - midline2) <= 5:  # 直线的判别，连续五次都找到直线则判断为目前处于直线状态
             midline1EqualsMidline2 += 1
@@ -331,3 +346,5 @@ while True:
         pit1.stop()
         print("Ticker stop.")
         break
+
+

@@ -7,6 +7,7 @@ import time
 """
 初始化全局变量
 """
+# 电机PID
 # PID
 dutyL = 0
 dutyR = 0
@@ -16,10 +17,11 @@ error_pre_lastl = 0
 error_pre_lastr = 0
 error_prel = 0
 error_prer = 0
+
+# 位置环PID
 dir_error = 0
 dir_error_last = 0
 Dir_value = 0
-
 
 def control_encoder(encoder_l, encoder_r):
     global encl_data, encr_data
@@ -35,34 +37,39 @@ def control_encoder(encoder_l, encoder_r):
     gc.collect()
 
 
+Distance = 0
+
+
+def Record_Distance(Record_dis):
+    global Distance, encl_data, encr_data
+    if Record_dis == 1:
+        Distance = Distance + (abs(encl_data) + abs(encr_data)) / 2 * 10 * 0.005
+    else:
+        Distance = 0
+
+    return Distance
+
+
 def control_motor(motor_l, motor_r, error, Statu, flag):
     global dutyL, dutyR, errorl, errorR, error_pre_lastl, error_pre_lastr, error_prel, error_prer
-    global encl_data, encr_data, Stop
-    """
-    控制指定的电机，并根据占空比值改变电机转速和方向。
+    global encl_data, encr_data
+    global Stop
 
-    参数:
-    duty (int): 电机的占空比值，范围为 ±10000。正数表示正转，负数表示反转。
-    motor_l (MOTOR_CONTROLLER): 已初始化的左电机实例。
-    motor_r (MOTOR_CONTROLLER): 已初始化的右电机实例。
-    """
-
-    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    Tips: 调参
-    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
     Motor_P = 15
     Motor_I = 6.5
     Motor_D = 0
 
-    # 设置初始目标值
-    speed_L = 50
-    speed_R = 50
-
+    speed_L = 45  # flag = 0
+    speed_R = 45
+    """
+    else:
+        speed_L = 50
+        speed_R = 50"""
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 直线PID
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    # 防止按键启动前的误差积累
-    if Key_4:
+    #防止按键启动前的误差积累
+    if Statu:
         # 左轮PID
         errorl = (int)(speed_L - encl_data) * (1)
         dutyL = dutyL + (errorl - error_prel) * Motor_P + errorl * Motor_I + (
@@ -78,18 +85,17 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
         error_pre_lastr = error_prer
         error_prer = errorR
         # print(errorR)
-
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 调参
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
     global dir_error, dir_error_last, Dir_value
-    Dir_P = 0
-    Dir_I = 1
-    Dir_D = 0
+    Dir_P = 5
+    Dir_I = 1.2
+    Dir_D = 15
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 转向PID(等待传入offset)
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    if abs(error) > 15:
+    if abs(error) > 20:
         Dir_value = (error - dir_error) * Dir_P + error * Dir_I + (error - 2 * (dir_error) + dir_error_last) * Dir_D
         dir_error = error
         dir_error_last = dir_error
@@ -97,18 +103,8 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
         dutyR = dutyR - Dir_value
         dutyL = dutyL + Dir_value
 
-    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    Tips: 其他功能
-    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    #
-    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    Tips: 按键启动,出线停车
-    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
     if not Statu:
         dutyL = dutyR = 0
-    if not Key_4:
-        dutyL = dutyR = 0
-
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 限幅，运行
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -128,11 +124,17 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
     gc.collect()
 
 
-"""
-# 示例调用
-control_motor(2500, 'left', motor_l, motor_r, led1)  # 控制左电机，以占空比 2500 运行
-time.sleep(2)  # 运行 2 秒
-control_motor(-2500, 'right', motor_l, motor_r, led1)  # 控制右电机，以占空比 -2500 运行
-"""
+
+
+
+
+
+
+
+
+
+
+
+
 
 

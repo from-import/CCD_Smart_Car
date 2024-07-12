@@ -2,6 +2,7 @@ from machine import *
 import gc
 import time
 
+
 #error_pre_last = 0
 #error_pre = 0
 
@@ -10,8 +11,6 @@ def duty_angle(angle):
     # 使用 300Hz 的舵机控制频率
     # pwm_servo_hz = 300
     return int(65535.0 / (1000.0 / 300) * (0.5 + angle / 90.0))
-
-
 
 
 # 通过 offset 计算 angle
@@ -34,14 +33,14 @@ def calculate_angle(offset):
         offset = -offset
         offset = offset * 13 / (a * 17 - 85.1935)
     else:
-        offset = offset * 16 / (a * 17 - 85.1935)
+        offset = offset * 11 / (a * 17 - 85.1935)
 
-    # （中值：101，左max值：117，右max值88）
-    angle = 101 + offset
+    angle = 101
+    angle = angle + offset
 
     # 限幅保护
-    if angle > 117:
-        angle = 117
+    if angle > 112:
+        angle = 112
     elif angle < 88:
         angle = 88
 
@@ -70,6 +69,9 @@ def set_servo_angle(pwm_servo, offset, flag):
     if flag == "isCircle":
         angle = calculate_angle(middleAngel)  # 入环标志位，保持直线行驶
 
+    if flag == "Crossing":
+        angle = calculate_angle(middleAngel)
+
     if flag == "goLeftCircle":
         angle = calculate_angle(leftAngel)
 
@@ -86,4 +88,3 @@ def set_servo_angle(pwm_servo, offset, flag):
     pwm_servo.duty_u16(duty_servo)  # 更新舵机PWM
     gc.collect()
     return angle
-

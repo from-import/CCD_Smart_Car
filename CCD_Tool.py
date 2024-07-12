@@ -21,17 +21,15 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
         lastMiddlePosition = 64  # 设置默认值
 
     start = lastMiddlePosition
-
-    # 初始化 left_edge 和 right_edge
     left_edge = start
     right_edge = start
 
     # 向左扫描
-    while left_edge > 0 and left_edge < len(ccd_data) and ccd_data[left_edge] == 1:
+    while 0 < left_edge < len(ccd_data) and ccd_data[left_edge] == 1:
         left_edge -= 1
 
     # 向右扫描
-    while right_edge < len(ccd_data) - 1 and right_edge >= 0 and ccd_data[right_edge] == 1:
+    while len(ccd_data) - 1 > right_edge >= 0 and ccd_data[right_edge] == 1:
         right_edge += 1
 
     # 确保扫描结果有效
@@ -88,7 +86,7 @@ def find_road_edges(ccd_data, lastMiddlePosition=64):
 """
 
 
-def find_start_line(ccd_buf, interval=2, threshold=1):
+def find_start_line(ccd_buf, interval=3, threshold=1):
     edge_count = 0
     last_edge_index = -1
 
@@ -106,34 +104,27 @@ def find_start_line(ccd_buf, interval=2, threshold=1):
 
 
 """
-函数名: find_intersection
-作用: 分析二值化后的CCD数据，判断是否存在十字路口。
-
-参数:
-binary_data (list): 包含二值化后的CCD数据，其中1表示道路，0表示非道路。
-
-返回值:
-bool: True表示检测到十字路口；否则返回False。
-
-说明:
-此函数检查在给定的CCD数据中，索引为10, 20, 30, 40, 50, 60, 70, 80, 90, 100的元素是否均为1。
-如果这些位置上的元素均为1，则判定进入十字路口。
-否则，返回False。
+函数作用：寻找进入十字路口的点和离开十字路口的点
 """
 
 
-def detect_intersection(ccd1, ccd2):
-    # 判断是否存在十字路口。
-    check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]
-    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1)
-    width1 = abs(left_edge1 - right_edge1)
-
-
-    # 检查这些位置的元素是否均为1
+def detect_intersection(ccd1, ccd2, lastMid_line1):
+    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1, lastMid_line1)
+    width1 = abs(left_edge1 - right_edge1)  # 判断CCD1宽度是否为直道
+    check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]  # 检查CCD2特定位置的元素是否均为1
     if all(ccd2[i] == 1 for i in check_indices):
-        if width1 < 50:
+        if width1 < 60:
             return True
+    return False
 
+
+def out_detect_intersection(ccd1, ccd2, lastMid_line1, lastMid_line2):
+    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1, lastMid_line1)
+    left_edge2, right_edge2, mid_line2 = find_road_edges(ccd2, lastMid_line2)
+    width1 = abs(left_edge1 - right_edge1)  # 判断CCD1宽度是否为直道
+    width2 = abs(left_edge2 - right_edge2)  # 判断CCD2宽度是否为直道
+    if width1 < 60 and width2 < 60:
+        return True
     return False
 
 
