@@ -1,13 +1,17 @@
-# from machine import *
+from machine import *
 import gc
 import time
 
+#error_pre_last = 0
+#error_pre = 0
 
 # 定义一个角度与占空比换算的函数
 def duty_angle(angle):
     # 使用 300Hz 的舵机控制频率
     # pwm_servo_hz = 300
     return int(65535.0 / (1000.0 / 300) * (0.5 + angle / 90.0))
+
+
 
 
 # 通过 offset 计算 angle
@@ -53,9 +57,11 @@ pwm_servo (PWM): 舵机实例。
 offset: 偏差值，由Get_CCD计算返回。
 flag：特殊标志位
 """
+
+# （中值：101，左max值：112，右max值88）
 middleAngel = 101
-leftAngel = 115
-rightAngel = 90
+leftAngel = 112
+rightAngel = 88
 
 
 def set_servo_angle(pwm_servo, offset, flag):
