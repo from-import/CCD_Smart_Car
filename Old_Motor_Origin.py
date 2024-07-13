@@ -50,21 +50,18 @@ def Record_Distance(Record_dis):
     return Distance
 
 
-def control_motor(motor_l, motor_r, error, Statu, flag):
+def control_motor(motor_l, motor_r, error, Statu, flag, speedFlag):
     global dutyL, dutyR, errorl, errorR, error_pre_lastl, error_pre_lastr, error_prel, error_prer
     global encl_data, encr_data
     global Stop
 
-    Motor_P = 10
-    Motor_I = 4
+    Motor_P = 15
+    Motor_I = 6.5
     Motor_D = 0
 
     speed_L = 35  # flag = 0
     speed_R = 35
-    """
-    else:
-        speed_L = 50
-        speed_R = 50"""
+
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 直线PID
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -95,7 +92,7 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 转向PID(等待传入offset)
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    if abs(error) > 20:
+    if abs(error) > 40:
         Dir_value = (error - dir_error) * Dir_P + error * Dir_I + (error - 2 * (dir_error) + dir_error_last) * Dir_D
         dir_error = error
         dir_error_last = dir_error
@@ -105,6 +102,13 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
 
     if not Statu:
         dutyL = dutyR = 0
+    if flag == "stop":
+        dutyL = dutyR = 0
+    if speedFlag == "slow":
+        dutyL = 0.8 * dutyL
+        dutyR = 0.8 * dutyR
+
+
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 限幅，运行
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -122,6 +126,7 @@ def control_motor(motor_l, motor_r, error, Statu, flag):
     motor_r.duty(dutyR)
     # print(dutyL, dutyR)
     gc.collect()
+
 
 
 
