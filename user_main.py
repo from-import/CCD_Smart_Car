@@ -212,9 +212,6 @@ while True:
             # 提取边线和中线
             left_edge_short, right_edge_short, mid_line_short = find_road_edges(ccd_data1, flag, 1)
             left_edge_long, right_edge_long, mid_line_long = find_road_edges(ccd_data2, flag, 2)
-
-
-
             # 这个mid_line_long 的计算方法是，目前中线占10%权重，历史中线占90%权重，最后+n补充，目前n=0
             mid_line_long = 0.1 * mid_line_long + 0.9 * sum(last10Middle) / 10 + 0
             ccdSuper_short = mid_line_short - 64
