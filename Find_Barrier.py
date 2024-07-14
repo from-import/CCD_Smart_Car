@@ -34,7 +34,7 @@ def find_barrier(ccd_buf,lastRoadWidth):
     current_width = right_edge - left_edge
     widthRate = abs(current_width - lastRoadWidth) / lastRoadWidth if lastRoadWidth != 0 else 0
 
-    # 假设宽度变化率阈值为30%
+    # 假设宽度变化率阈值为20%
     threshold = 0.3
 
     if widthRate > threshold:

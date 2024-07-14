@@ -1,7 +1,7 @@
 from machine import *
 from seekfree import TSL1401
 from Get_CCD import read_ccd_data, find_road_edges
-
+from Motor_Origin import Record_Distance
 
 flag = 0
 last_width = 0
@@ -10,6 +10,9 @@ isCircleNow = False
 Go_circle = False
 outCircle = False
 WaitoutCircle = False
+
+timer = 0
+circle_count = 0
 
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips:   Statu 总启动标志，0为停止
@@ -25,58 +28,43 @@ Tips:   Statu 总启动标志，0为停止
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 
 
-def Element_flag(data, left_edge, right_edge, ahead):
+def Element_flag(data, left_edge, right_edge, Yaw, data2):
     global flag, last_width
     global isCircleNow, Go_circle, outCircle, WaitoutCircle
-    global Ready_Circle,If_Circle_Go
-
-    # 读取跳变点
+    global Ready_Circle, If_Circle_Go, timer, circle_count
     number = count_transitions(data)
-    # 调试出线停车，不应该覆盖其他的flag
-    if (flag == 11 or flag == 0):
-        # 出线,斑马线
+    width = count_white(data)
+
+    # 出线停车
+    if flag == 11 or flag == 0:
         flag = 11 if (number == 0 and data[64] == 0) else 0
-        if (flag == 11):
-            return 11
-    if number > 5:
+        return 11
+
+    # 斑马线停车
+    if number > 5 and width < 40:
         flag = 10
         return 10
 
-    # 跳转count_white函数
-    width = count_white(data)
-    #print(width)
-
-    # 因为长镜头提前进入标记后会引起近镜头的误判
-    # 我们反复确认环条件是否正确，ahead变量标记了这种影响，如果这种影响被消除了，ahead会被赋0
-    if ahead:
-        #瞬间变大，认为是十字
-        # if width - last_width > 25 :
-        #     #print(last_width,width)
-        #     # 更新width数值
-        #     last_width = width
-        #     return 7788
-        isCircleNow = is_circle(width,left_edge,right_edge,ahead)
-        if isCircleNow:
-            # 更新width数值
-            last_width = width
-            return 2023
-        # 更新width数值
-        last_width = width
-        return 0
-
     """第一步，寻找入环标志：左侧和中间同时出现白色区域，即白黑白；进圆预入环，flag = 4"""
-    if not isCircleNow and not flag:
-        isCircleNow = is_circle(width, left_edge, right_edge, ahead)  # isCircleNow为是否检测到环
+    isCircleNow = is_circle(width, left_edge, right_edge)
+    if isCircleNow:
+        circle_count += 1  # 增加计数
+        if circle_count >= 50:  # 检查是否达到10次
+            last_width = width  # 更新width数值
+            return 2023  # CCD2识别到50次入环特征，flag设置为2023
+    else:
+        circle_count = 0  # 重置计数器
+        last_width = width  # 更新width数值
+        return 0
 
     """第二步，找到环中点，进行强制打角，flag = 40"""
     if isCircleNow:
-        #print('isCircleNow')
         flag = 4
         Go_circle = Go_circle_now(width)
 
     """第三步，进入环岛，并且丢单线，持续识别出环标志,flag = 5,预备出环，用圆环内补线逻辑"""
     if Go_circle:
-        #print('Go_circle')
+        # print('Go_circle')
         flag = 40
         isCircleNow = False
         # 入环成功，开始丢线走圆内急弯
@@ -84,18 +72,28 @@ def Element_flag(data, left_edge, right_edge, ahead):
 
     """第四步，识别到大部分为白色的特征，进入出环阶段"""
     if WaitoutCircle:
-        #print('WaitoutCircle')
+        # print('WaitoutCircle')
         flag = 5
         Go_circle = False
-        outCircle = Out_Circle_now(width)
+        outCircle = True
 
-    if outCircle:
-        #print('outCircle')
-        flag = 50
+    # print(abs(Yaw),outCircle)
+    if outCircle and abs(Yaw) > 280:
+        # print('outCircle')
         WaitoutCircle = False
+        flag = 501
 
-    if flag == 50 and abs((left_edge + right_edge) // 2 - 64) < 8 and width < 50:
-        flag = 0
+    if flag == 501 and abs(Yaw) > 345:
+        # 僵直，维持原状态
+        flag = 50
+        outCircle = False
+
+    if flag == 50:
+        if out_detect_intersection(data, data2):
+            timer += 1
+        if timer == 150:
+            flag = 0
+            timer = 0
         Ready_Circle = False
         If_Circle_Go = False
 
@@ -119,7 +117,6 @@ def count_transitions(data):
 Tips:因为圆环会存在（白黑白黑）的特征，此时左右边界的特征表现为直道 
         此现象较复杂，容易导致一些误判，所以放弃此种特征
         我们统一使用[0*128]中白点的数量来代替width
-
 """
 
 
@@ -139,7 +136,6 @@ def count_white(data):
 """
 函数名: is_circle
 作用: 通过分析CCD数据，判断是否进入环岛并检测环岛的方向（左环或右环）。
-
 _——————____,现象，单边出现大量白色
 
 思路：设定区间框选单边的正常范围，判断是否一边是不丢线状态
@@ -149,20 +145,21 @@ _——————____,现象，单边出现大量白色
 """
 
 
-def is_circle(number_white, left_edge, right_edge, ahead):
-    if ahead:
-        left_edge_min = 35
-        left_edge_max = 49
-        right_edge_min = 79
-        right_edge_max = 93
+def is_circle(number_white, left_edge, right_edge):
+    left_edge_min = 35
+    left_edge_max = 49
+    right_edge_min = 79
+    right_edge_max = 93
+    """ 
     else:
         left_edge_min = 35
         left_edge_max = 46
         right_edge_min = 82
         right_edge_max = 93
+    """
 
-    if (left_edge_min < left_edge < left_edge_max or right_edge_min < right_edge < right_edge_max):
-        if (number_white > 70):
+    if left_edge_min < left_edge < left_edge_max or right_edge_min < right_edge < right_edge_max:
+        if number_white > 70:
             return True
     return False
 
@@ -180,27 +177,27 @@ def is_circle(number_white, left_edge, right_edge, ahead):
 Ready_Circle = False
 If_Circle_Go = False
 
+
 def Go_circle_now(current_width):
     global last_width
-    global Ready_Circle,If_Circle_Go
-    #可以使用扫描圆中点的方式，但也可以用扫描大小的方式
-    #扫描大小的方式可以调整入圆的时间
+    global Ready_Circle, If_Circle_Go
+    # 可以使用扫描圆中点的方式，但也可以用扫描大小的方式
+    # 扫描大小的方式可以调整入圆的时间
     # if last_width < current_width：
-    if current_width > 70 :
+    if current_width > 70:
         Ready_Circle = True
 
     if Ready_Circle and current_width < 50:
-        If_Circle_Go = True
+        return True
 
-    if If_Circle_Go and current_width > 55:
-        return  True
+    # if If_Circle_Go and current_width > 55:
+    # return True
     return False
 
 
 """
 函数名: Wait_to_outCircle
 作用: 通过分析CCD数据和道路宽度变化，判断是否现在准备出环。
-
 思路：入环成功，开始丢线走圆内急弯，这个环节会出现类似于转弯的特性
 """
 
@@ -223,16 +220,14 @@ def Wait_to_outCircle(data, num_ones=6, segment_length=15):
 """
 函数名: Out_Circle_now
 作用: 通过分析CCD数据和道路宽度变化，判断是否现在进入出环程序。
-
 思路：出现一个类似于十字的大白色特征时我们知道应该出环了
 """
 
 
 def Out_Circle_now(width):
-    if width > 100:
+    if width > 60:
         return True
     return False
-
 
 
 """
@@ -251,17 +246,19 @@ bool: True表示检测到十字路口；否则返回False。
 否则，返回False。
 """
 
+
 def detect_intersection(ccd1, ccd2):
-    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1,0,1)
+    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1, 0, 1)
     width1 = abs(left_edge1 - right_edge1)  # 判断CCD1宽度是否为直道
-    check_indices = [30, 40, 50, 60, 70, 80, 90]  # 检查CCD2特定位置的元素是否均为1
+    check_indices = [20, 30, 40, 50, 60, 70, 80, 90, 100]  # 检查CCD2特定位置的元素是否均为1
     if all(ccd2[i] == 1 for i in check_indices):
-        if width1 < 60:
+        if width1 < 50:
             return True
     return False
 
-def detect_intersection2(ccd1, ccd2):
-    check_indices = [30, 40, 50, 60, 70, 80, 90]  # 检查CCD2特定位置的元素是否均为1
+
+def on_detect_intersection(ccd1, ccd2):
+    check_indices = [30, 40, 50, 60, 70, 80, 90]
     if all(ccd2[i] == 1 for i in check_indices):
         if all(ccd1[i] == 1 for i in check_indices):
             return True
@@ -269,16 +266,10 @@ def detect_intersection2(ccd1, ccd2):
 
 
 def out_detect_intersection(ccd1, ccd2):
-    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1,0,1)
-    left_edge2, right_edge2, mid_line2 = find_road_edges(ccd2,0,1)
+    left_edge1, right_edge1, mid_line1 = find_road_edges(ccd1, 0, 1)
+    left_edge2, right_edge2, mid_line2 = find_road_edges(ccd2, 0, 2)
     width1 = abs(left_edge1 - right_edge1)  # 判断CCD1宽度是否为直道
     width2 = abs(left_edge2 - right_edge2)  # 判断CCD2宽度是否为直道
-    if width1 < 60 and width2 < 60:
+    if width1 < 50 and width2 < 50:
         return True
     return False
-
-
-
-
-
-
