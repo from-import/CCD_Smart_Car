@@ -150,7 +150,7 @@ Tips: 定时器内容编写
 
 # 定义一个回调函数（定时运行程序可以写在里面）
 def time_pit_handler(time):
-    global ticker_flag, ccdSuper_short, angle, Statu, flag, speedSet
+    global ticker_flag, ccdSuper_short, angle, Statu, flag, speedSet, Yaw
     ticker_flag = True  # 否则它会新建一个局部变量
     """用户自己的软件代码"""
     # encoder
@@ -159,7 +159,24 @@ def time_pit_handler(time):
     control_motor(motor_l, motor_r, ccdSuper, Statu, flag, speedSet)
     # 舵机运行程序
     angle = set_servo_angle(pwm_servo, ccdSuper, flag)
+    # 陀螺仪
+    imu_data = imu.get()  # 通过 get 接口读取数据
+    current_rate = int(float(imu_data[5]) / 151)  # 计算当前角速度并归一化
+    Yaw += current_rate * 0.1  # 积分更新角度, 假设 0.4 是时间间隔或增益
+    if flag == 4:
+        Yaw = 0
 
+def filter_ccd_data(ccd_data):
+    # 过滤掉所有大于1000的值
+    filtered_data = [value if value <= 1000 else 0 for value in ccd_data]
+
+    # 剔除突出的点
+    smoothed_data = filtered_data[:]
+    for i in range(1, len(filtered_data) - 1):
+        if abs(filtered_data[i] - filtered_data[i - 1]) > 500 and abs(filtered_data[i] - filtered_data[i + 1]) > 500:
+            smoothed_data[i] = (filtered_data[i - 1] + filtered_data[i + 1]) // 2
+
+    return smoothed_data
 
 # 选定1号定时器
 pit1 = ticker(1)
@@ -226,10 +243,14 @@ while True:
         if Statu:
             """基本数据采集部分"""
             key_1, key_2, key_3, Statu = Key_data(key)  # 读取按键数据
-            originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
-            originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
-            trueValue1 = sum(originalCcdData1)  # 计算ccd_data1 所有值的求和
-            trueValue2 = sum(originalCcdData2)  # 计算ccd_data2 所有值的求和
+            originalCcdData1 = ccd.get(0)
+            originalCcdData2 = ccd.get(1)
+            # 对originalCcdData进行滤波
+            filteredCcdData1 = filter_ccd_data(originalCcdData1)
+            filteredCcdData2 = filter_ccd_data(originalCcdData2)
+            # 计算ccd_data所有值的求和
+            trueValue1 = sum(filteredCcdData1)
+            trueValue2 = sum(filteredCcdData2)
             ccd_data = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2, crossFlag)  # 获取二值化后的ccd_data
 
             ccd_data1 = ccd_data[0]  # 近端ccd
@@ -249,49 +270,84 @@ while True:
             ccdSuper_long = mid_line_long - 64
 
             ccdSuper = ccdSuper_long  # 正常情况下采用CCD2循迹
-            if abs(ccdSuper_long - ccdSuper_short) > 5 or flag != 0:
+            if abs(ccdSuper_long - ccdSuper_short) > 10 or flag != 0:
                 ccdSuper = ccdSuper_short  # 车辆转入急弯时切换镜头，同时存在元素情况时也切换镜头
 
-            """十字路口判别"""
-            # Step1 当CCD1识别到直道,但是CCD2识别到全白
-            if trueValue1 < 60000 and trueValue2 > 70000 and abs(mid_line_short - 64) <= 10:
-                crossFlag = 17788
-                ccdSuper = ccdSuper_short
+            # 环的过程中不应该有误判
+            if flag != 50 and flag != 501 and flag != 5:
+                """十字路口判别"""
+                # Step1 当CCD1识别到直道,但是CCD2识别到全白
+                if trueValue1 < 70000 and trueValue2 > 70000 and abs(mid_line_short - 64) <= 10:
+                    crossFlag = 17788
+                    ccdSuper = ccdSuper_short
 
-            # Step2 当CCD1 和 CCD2 均为全白
-            if crossFlag == 17788:
-                if trueValue1 > 70000 and trueValue2 > 70000:
-                    crossFlag = 27788
+                # Step2 当CCD1 和 CCD2 均为全白
+                if crossFlag == 17788:
+                    if trueValue1 > 70000 and trueValue2 > 70000:
+                        crossFlag = 27788
 
-            # Step3 当CCD2识别到直道,但是CCD1识别到全白
-            if trueValue2 < 60000 and trueValue1 > 70000 and abs(mid_line_long - 64) <= 10:
-                crossFlag = 37788
-                ccdSuper = ccdSuper_long
+                # Step3 当CCD2识别到直道,但是CCD1识别到全白
+                if trueValue2 < 60000 and trueValue1 > 70000 and abs(mid_line_long - 64) <= 10:
+                    crossFlag = 37788
+                    ccdSuper = ccdSuper_long
 
-            # Step4 CCD1 和 CCD2 均判断为直道特征
-            if (crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and trueValue1 < 70000 and trueValue2 < 70000:
-                crossFlag = 0
+                # Step4 CCD1 和 CCD2 均判断为直道特征
+                if (
+                        crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and trueValue1 < 70000 and trueValue2 < 70000:
+                    crossFlag = 0
 
-            if crossFlag == 17788:
-                ccdSuper = ccdSuper_short
+                if crossFlag == 17788:
+                    ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
 
-            if crossFlag == 27788:
+                if crossFlag == 27788:
+                    ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
 
-                ccdSuper = -0.8 * ccdSuper_short
+                if crossFlag == 37788:
+                    ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
 
-            if crossFlag == 37788:
-                ccdSuper = ccdSuper_long
-
-            # 如果长时间保持直线状态,更新flag为直线
-            if trueValue1 < 60000 and trueValue2 < 60000 and abs(mid_line_short - mid_line_long) <= 10:
-                num += 1
-                if num > 10:
-                    flag = 0
+            # 满足这个条件才是2023预入环
+            if (80000 > trueValue1 > 70000) and (70000 < trueValue2 < 80000) and flag == 2023:
+                flag = 2023
             else:
-                num = 0
+                flag = 0
 
+            # 圆环
+            if not flag:
+                flag = Element_flag(ccd_data2, left_edge_long, right_edge_long, ahead, Yaw, ccd_data2)
+            # 十字过程中不应该有误判
+            elif crossFlag != 27788 and crossFlag != 37788:
+                flag = Element_flag(ccd_data1, left_edge_short, right_edge_short, ahead, Yaw, ccd_data2)
+                # 当ahead为1时，程序会反复确认预入环条件，不符合会返回0
+                if flag == 0 and ahead == 1:
+                    # 给了flag一个值，强迫巡线程序退出长镜头
+                    flag = 2023
+                # 如果短镜头也识别到了入环条件，此时ahead开关没有关断，flag会返回2023
+                # 我们给flag赋予正确的值并关断ahead开关
+                elif flag == 2023:
+                    flag = 4
+                    ahead = 0
 
+            if flag == 4 or flag == 2023:
+                ccdSuper = ccdSuper_short
 
+            # if trueValue1 > 81000 or trueValue2 > 81000:
+            # flag = 0
+
+            # if (trueValue1 < 70000 or trueValue2 < 70000) and flag == 2023:
+            # flag = 0
+
+        last_flag = flag
+        if flag != last_flag:
+            realLastFlag = flag  # realLastFlag存储上一次与当前flag不同时候的flag
+
+        # 元素结束，重新进入长摄像头循迹，打开ahead开关，保护Element_flag函数中的global数值
+        if last_flag == 50 and flag == 0:
+            ahead = 1
+
+        # 如果白色太少了，就把标记清零，可能有误判了
+        if sum(1 for x in ccd_data1 if x == 1) < 8:
+            flag = 0
+            crossFlag = 0
 
         # 蜂鸣器简单调用
         # 预备阶段响铃
@@ -299,12 +355,6 @@ while True:
             BEEP.value(True)
         else:
             BEEP.value(False)
-
-        imu_data = imu.get()  # 通过 get 接口读取数据
-        current_rate = int(float(imu_data[5]) / 55.5)  # 计算当前角速度并归一化
-        Yaw += current_rate * 0.04  # 积分更新角度, 假设 0.4 是时间间隔或增益
-        if flag == 4:
-            Yaw = 0
 
         # wireless.send_ccd_image(WIRELESS_UART.ALL_CCD_BUFFER_INDEX)  # 无线打印ccd数据
 
@@ -320,16 +370,6 @@ while True:
 
         lastCcdSuper = ccdSuper  # 上一次的误差
         ticker_flag = False  # 定时器关断标志
-
-
-
-
-
-
-
-
-
-
 
     """屏幕显示部分"""
     key_1, key_2, key_3, Statu = Key_data(key)
@@ -449,9 +489,10 @@ while True:
 
     """数据展示菜单(2级)"""
     if menu == 2:
-        display_strings(lcd, ["ccdSuper1","ccdSuper2", "ccdSuper", "angle", "flag", "Yaw", "trueValue1", "trueValue2","crossFlag","crossSuper"],
-                        [ccdSuper_short,ccdSuper_long,ccdSuper, angle, flag, Yaw, int(trueValue1),
-                         int(trueValue2),crossFlag,crossSuper])
+        display_strings(lcd, ["ccdSuper1", "ccdSuper2", "ccdSuper", "angle", "flag", "Yaw", "trueValue1", "trueValue2",
+                              "crossFlag", "crossSuper"],
+                        [ccdSuper_short, ccdSuper_long, ccdSuper, angle, flag, Yaw, int(trueValue1),
+                         int(trueValue2), crossFlag, crossSuper])
 
     """数据采集菜单(2级)"""
     if menu == 3:
@@ -468,6 +509,10 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
+
+
+
+
 
 
 
