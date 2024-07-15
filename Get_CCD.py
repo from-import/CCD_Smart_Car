@@ -1,6 +1,7 @@
 from machine import *
 from seekfree import TSL1401
 
+
 def get_mid(a, b, c):
     # 获取三个值中的中间值。
     x = 0
@@ -33,6 +34,8 @@ def bin_ccd_filter(data):
 
 
 """函数作用：return目前计算出来的阈值"""
+
+
 def threshold_determination(data):
     # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
     # 找出数据列表中的最大值和最小值，确定数据的动态范围。
@@ -78,7 +81,8 @@ T_old (float): 上一次的阈值，用于全黑情况下的处理。
 list: 二值化后的 CCD 数据。
 """
 
-def binary_thresholding(data,T):
+
+def binary_thresholding(data, T):
     return [0 if x <= T else 1 for x in data]
 
 
@@ -92,16 +96,25 @@ def binary_thresholding(data,T):
 """
 
 
-def read_ccd_data(ccd_data1, ccd_data2,T1,T2):
+def read_ccd_data(ccd_data1, ccd_data2, T1, T2, crossFlag, flag=0):
     # CCD 数据滤波
     filtered_ccd1 = bin_ccd_filter(ccd_data1)
     filtered_ccd2 = bin_ccd_filter(ccd_data2)
 
     # CCD 数据二值化
-    binary_ccd1 = binary_thresholding(filtered_ccd1,T1)
-    binary_ccd2 = binary_thresholding(filtered_ccd2,T2)
+    binary_ccd1 = binary_thresholding(filtered_ccd1, T1)
+    binary_ccd2 = binary_thresholding(filtered_ccd2, T2)
 
-    return binary_ccd1, binary_ccd2
+    n = 15
+    if crossFlag == 27788:
+        binary_ccd1[:n] = [0] * n
+        binary_ccd1[-n:] = [0] * n
+        binary_ccd2[:n] = [0] * n
+        binary_ccd2[-n:] = [0] * n
+
+
+    return [binary_ccd1, binary_ccd2]
+
 
 """
 find_road_edges : 查找道路左侧和右侧的边界位置，并计算中线位置。
@@ -175,10 +188,12 @@ def find_road_edges(ccd_data, flag, name):
 
         flag = 40 入环   舵机打角，由mid_line选定打角方向
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+    print(name)
     if name == 1:
         if flag:
-            if Special_Elements(left_edge, right_edge, flag):
-                mid_line = Special_Elements(left_edge, right_edge, flag)
+            if Special_Elements(left_edge, right_edge, flag, mid_line):
+                mid_line = Special_Elements(left_edge, right_edge, flag, mid_line)
+                print(mid_line)
 
     # ccd数值存储(1为ccd1，2为ccd2，一共两个)
     if name == 1:
@@ -192,7 +207,7 @@ def find_road_edges(ccd_data, flag, name):
 leftOrRight = 0
 
 
-def Special_Elements(left_edge, right_edge, flag):
+def Special_Elements(left_edge, right_edge, flag, line):
     # 保留leftOrRight的数值
     global leftOrRight, lastMiddlePosition_short
     if flag == 4 or flag == 2023:
@@ -201,7 +216,7 @@ def Special_Elements(left_edge, right_edge, flag):
             leftOrRight = 1 if (abs(left_edge - 64) > abs(right_edge - 64)) else 0
             # print(leftOrRight)
         # 单边找补，补到中线
-        mid_line = right_edge - 24 if leftOrRight else left_edge + 24
+        mid_line = right_edge - 22 if leftOrRight else left_edge + 22
         return mid_line
 
     if flag == 40:
@@ -210,19 +225,24 @@ def Special_Elements(left_edge, right_edge, flag):
 
     # 圆环特殊补线，可以调整大小，为急弯
     if flag == 5:
+        if leftOrRight and line > 64:
+            return 50
+        elif not leftOrRight and line < 64:
+            return 78
         mid_line = right_edge - 40 if leftOrRight else left_edge + 40
         return mid_line
 
-    if flag == 50:
-        # 注意，这里舍弃了全白空间的调整，可能出现抖动的问题，后续需要完善
-        # 全白，保持上一次的状态
-        if abs(left_edge - right_edge) > 70:
-            mid_line = lastMiddlePosition_short
-
-        # 单边找补，补到中线（左近环右边补，右进环左边补）
-        mid_line = right_edge - 24 if leftOrRight else left_edge + 24
-
+    if flag == 501:
+        mid_line = 45 if leftOrRight else 83
         return mid_line
+
+    if flag == 50:
+        # 单边找补，补到中线（左近环右边补，右进环左边补）
+        mid_line = right_edge - 20 if leftOrRight else left_edge + 20
+        return mid_line
+
+    if flag == 27788:
+        return 64
 
 
 """
@@ -247,11 +267,6 @@ u 型弯道和 0 型弯道可以认为是多个同方向普通弯道连接在一
 def calculate_curvature(x1, x2, x3):
     curvature = abs((x3 - x2) - (x2 - x1))
     return curvature
-
-
-
-
-
 
 
 

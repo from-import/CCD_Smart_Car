@@ -50,9 +50,6 @@ ccd.set_resolution(TSL1401.RES_12BIT)
 
 # 实例化 WIRELESS_UART 模块 参数是波特率
 wireless = WIRELESS_UART(460800)
-# 测试无线正常
-wireless.send_str("Hello World.\r\n")
-time.sleep_ms(500)
 
 """
 电机 Motor 初始化,示例调用:
@@ -134,15 +131,18 @@ Yaw = 0
 num = 0
 runTimes = 0
 displayCheck = menu = 0
-speedSet = 40
+speedSet = 48
 last10Middle1 = last10Middle2 = [0] * 10
 trueValue1 = trueValue2 = 0
 lastCcdSuper = 0
-history1 = [[0] * 128 for _ in range(10)]
-history2 = [[0] * 128 for _ in range(10)]
+history1 = [[0] * 128 for _ in range(50)]
+history2 = [[0] * 128 for _ in range(50)]
 user_data1 = []
 user_data2 = []
-ccd_data1 = ccd_data2 = [0] * 128
+crossSuper = 0
+averageMedLine1 = averageMedLine2 = 64
+ccd_data1 = ccd_data2 = originalCcdData1 = originalCcdData2 = [0] * 128
+crossFlag = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -172,6 +172,24 @@ pit1.callback(time_pit_handler)
 # 启动 ticker 实例 参数是触发周期 单位是毫秒
 pit1.start(10)
 
+
+def write_ccd_in_txt(many_ccd_data, txtname, mode="w+"):
+    # 函数作用：将包含很多 ccd_data 的一个列表完全写入 txtname.txt
+    os.chdir("/flash")
+    userFile = io.open(f"{txtname}.txt", f"{mode}")
+    userFile.seek(0, 0)
+    for ccd_data in many_ccd_data:
+        userFile.write(f"\n[")
+        for item in ccd_data:
+            if item == len(ccd_data) - 1:
+                userFile.write("%d" % item)
+            else:
+                userFile.write("%d," % item)
+        userFile.write(f"],")
+    userFile.flush()  # 将缓冲区数据写入到文件 清空缓冲区 相当于保存指令
+    userFile.close()  # 最后将文件关闭即可
+
+
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 主函数部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -179,8 +197,15 @@ Tips: 主函数部分
 while True:
     if (ticker_flag):
         runTimes += 1
-        # 初始确定CCD1和CCD2的阈值
+        if runTimes % 200 == 0:
+            lcd.clear(0x0000)
+            runTimes = 0
+            # print("主函数已运行3000次，目前的赛道图片截取到 history1 and history2")
+            # write_ccd_in_txt(history1, "history1")
+            # write_ccd_in_txt(history2, "history2")
+
         if Statu == 1 and ccdThresholdDetermination == 0:
+            # 初始确定CCD1和CCD2的阈值
             ccdThresholdDetermination = 1
             T1 = T2 = 0
             for _ in range(0, 10):
@@ -205,45 +230,68 @@ while True:
             originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
             trueValue1 = sum(originalCcdData1)  # 计算ccd_data1 所有值的求和
             trueValue2 = sum(originalCcdData2)  # 计算ccd_data2 所有值的求和
-            ccd_data = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2)  # 获取二值化后的ccd_data
+            ccd_data = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2, crossFlag)  # 获取二值化后的ccd_data
+
             ccd_data1 = ccd_data[0]  # 近端ccd
             ccd_data2 = ccd_data[1]  # 远端ccd
             history1[1:] = history1[:-1]
-            history1[0] = ccd_data1  # history1 存储了最近十次的ccd_data1值
+            history1[0] = ccd_data1  # history1 存储了最近100次的ccd_data1值
             history2[1:] = history2[:-1]
-            history2[0] = ccd_data2  # history2 存储了最近十次的ccd_data2值
+            history2[0] = ccd_data2  # history2 存储了最近100次的ccd_data2值
             left_edge_short, right_edge_short, mid_line_short = find_road_edges(ccd_data1, flag, 1)  # 提取CCD1的边线和中线
             left_edge_long, right_edge_long, mid_line_long = find_road_edges(ccd_data2, flag, 2)  # 提取CCD2的边线和中线
             last10Middle1 = [mid_line_short] + last10Middle1[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             last10Middle2 = [mid_line_long] + last10Middle2[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             # 这个mid_line_long 的计算方法是，目前中线占10%权重，历史中线占90%权重，最后+n补充，目前n=0
-            averageMedLine1 = 0.1 * mid_line_short + 0.9 * sum(last10Middle1) / 10 + 0
-            averageMedLine2 = 0.1 * mid_line_long + 0.9 * sum(last10Middle2) / 10 + 0
+            averageMedLine1 = 0.01 * mid_line_short + 0.99 * sum(last10Middle1) / 10 + 0
+            averageMedLine2 = 0.01 * mid_line_long + 0.99 * sum(last10Middle2) / 10 + 0
             ccdSuper_short = mid_line_short - 64
             ccdSuper_long = mid_line_long - 64
 
             ccdSuper = ccdSuper_long  # 正常情况下采用CCD2循迹
-            if abs(ccdSuper) > 15 or flag != 0:
+            if abs(ccdSuper_long - ccdSuper_short) > 5 or flag != 0:
                 ccdSuper = ccdSuper_short  # 车辆转入急弯时切换镜头，同时存在元素情况时也切换镜头
 
             """十字路口判别"""
-            if trueValue1 < 60000 and trueValue2 > 75000:
-                flag = 17788
+            # Step1 当CCD1识别到直道,但是CCD2识别到全白
+            if trueValue1 < 60000 and trueValue2 > 70000 and abs(mid_line_short - 64) <= 10:
+                crossFlag = 17788
                 ccdSuper = ccdSuper_short
-            if flag == 17788:
+
+            # Step2 当CCD1 和 CCD2 均为全白
+            if crossFlag == 17788:
                 if trueValue1 > 70000 and trueValue2 > 70000:
-                    flag = 27788
-                    ccdSuper = lastCcdSuper
-            if flag == 27788 and trueValue1 < 70000 and trueValue2 < 70000:
-                flag = 0
-            if trueValue1 < 60000 and trueValue2 < 60000:
-                # 如果长时间保持直线的逻辑
+                    crossFlag = 27788
+
+            # Step3 当CCD2识别到直道,但是CCD1识别到全白
+            if trueValue2 < 60000 and trueValue1 > 70000 and abs(mid_line_long - 64) <= 10:
+                crossFlag = 37788
+                ccdSuper = ccdSuper_long
+
+            # Step4 CCD1 和 CCD2 均判断为直道特征
+            if (crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and trueValue1 < 70000 and trueValue2 < 70000:
+                crossFlag = 0
+
+            if crossFlag == 17788:
+                ccdSuper = ccdSuper_short
+
+            if crossFlag == 27788:
+
+                ccdSuper = -0.8 * ccdSuper_short
+
+            if crossFlag == 37788:
+                ccdSuper = ccdSuper_long
+
+            # 如果长时间保持直线状态,更新flag为直线
+            if trueValue1 < 60000 and trueValue2 < 60000 and abs(mid_line_short - mid_line_long) <= 10:
                 num += 1
-                if num > 200:
+                if num > 10:
                     flag = 0
             else:
                 num = 0
-            lastCcdSuper = ccdSuper  # 上一次的误差
+
+
+
 
         # 蜂鸣器简单调用
         # 预备阶段响铃
@@ -251,14 +299,6 @@ while True:
             BEEP.value(True)
         else:
             BEEP.value(False)
-        """if flag == 4:
-            BEEP.value(True)
-        elif flag == 501:
-            BEEP.value(True)
-        elif flag == 7788:
-            BEEP.value(True)
-        else:
-            BEEP.value(False)"""
 
         imu_data = imu.get()  # 通过 get 接口读取数据
         current_rate = int(float(imu_data[5]) / 55.5)  # 计算当前角速度并归一化
@@ -278,7 +318,18 @@ while True:
                 print(f"mid_line_long: {mid_line_long}")
                 print(f"realLastFlag： {realLastFlag}")
 
+        lastCcdSuper = ccdSuper  # 上一次的误差
         ticker_flag = False  # 定时器关断标志
+
+
+
+
+
+
+
+
+
+
 
     """屏幕显示部分"""
     key_1, key_2, key_3, Statu = Key_data(key)
@@ -286,16 +337,17 @@ while True:
         print("key1")
         displayCheck += 1
         if menu == 3:
-            print("已添加CCD数据")
+            print("正在添加CCD数据，请勿操作")
             originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
             originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
             user_data1.append(originalCcdData1)
             user_data2.append(originalCcdData2)
+            print("CCD数据添加完成，可以继续操作")
 
     if key_2:
         print("key2")
-        displayCheck -= 1
-
+        if displayCheck != 0:
+            displayCheck -= 1
 
     if key_3:
         print("key3")
@@ -311,7 +363,7 @@ while True:
 
                 user_file.write(f"\n[")
                 for item in ccd_data1:
-                    if i == len(ccd_data1) - 1:
+                    if item == len(ccd_data1) - 1:
                         user_file.write("%d" % item)
                     else:
                         user_file.write("%d," % item)
@@ -329,7 +381,7 @@ while True:
 
                 user_file.write(f"\n[")
                 for item in ccd_data2:
-                    if i == len(ccd_data2) - 1:
+                    if item == len(ccd_data2) - 1:
                         user_file.write("%d" % item)
                     else:
                         user_file.write("%d," % item)
@@ -367,7 +419,6 @@ while True:
             speedSet = 90
             menu = 2
 
-
         lcd.clear(0x0000)
 
     """初级菜单(1级)"""
@@ -398,8 +449,9 @@ while True:
 
     """数据展示菜单(2级)"""
     if menu == 2:
-        display_strings(lcd, ["ccdSuper", "angle", "flag", "Yaw", "trueValue1", "trueValue2"],
-                        [ccdSuper, angle, flag, Yaw, int(trueValue1), int(trueValue2)])
+        display_strings(lcd, ["ccdSuper1","ccdSuper2", "ccdSuper", "angle", "flag", "Yaw", "trueValue1", "trueValue2","crossFlag","crossSuper"],
+                        [ccdSuper_short,ccdSuper_long,ccdSuper, angle, flag, Yaw, int(trueValue1),
+                         int(trueValue2),crossFlag,crossSuper])
 
     """数据采集菜单(2级)"""
     if menu == 3:
@@ -416,10 +468,6 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
-
-
-
-
 
 
 
