@@ -65,24 +65,24 @@ def control_motor(motor_l, motor_r, error, Statu, flag, speedSet):
     global dir_error, dir_error_last, Dir_value
     global Motor_P, Motor_I, Motor_D, speed_L, speed_R, Dir_P, Dir_I, Dir_D
 
-    if speedSet == 40:
-        Motor_P = 90
+    if speedSet !=60 and speedSet != 80 and speedSet != 90:
+        Motor_P = 80
         Motor_I = 2
         Motor_D = 15
-        speed_L = 40
-        speed_R = 40
-        Dir_P = 0
-        Dir_I = 2.5
+        speed_L = 50
+        speed_R = 50
+        Dir_P = -0.5
+        Dir_I = 0.25
         Dir_D = 0
 
     if speedSet == 60:
         Motor_P = 90
-        Motor_I = 2
+        Motor_I = 2.5
         Motor_D = 15
         speed_L = 60
         speed_R = 60
         Dir_P = 0
-        Dir_I = 2.5
+        Dir_I = 1.5
         Dir_D = 0
 
     if speedSet == 80:
@@ -135,22 +135,6 @@ def control_motor(motor_l, motor_r, error, Statu, flag, speedSet):
         dutyR = dutyR - Dir_value
         dutyL = dutyL + Dir_value
 
-    if abs(error) > 30:
-        Dir_value = (error - dir_error) * Dir_P + error * Dir_I + (error - 2 * (dir_error) + dir_error_last) * Dir_D
-        dir_error = error
-        dir_error_last = dir_error
-
-        dutyR = dutyR - Dir_value
-        dutyL = dutyL + Dir_value
-
-    if abs(error) > 40:
-        Dir_value = (error - dir_error) * Dir_P + error * Dir_I + (error - 2 * (dir_error) + dir_error_last) * Dir_D
-        dir_error = error
-        dir_error_last = dir_error
-
-        dutyR = dutyR - Dir_value
-        dutyL = dutyL + Dir_value
-
 
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 开环控制部分（Statu 总启动标志，0为停止）(flag不为0代表特殊情况)
@@ -192,3 +176,5 @@ def control_motor(motor_l, motor_r, error, Statu, flag, speedSet):
     motor_r.duty(dutyR)
     # print(dutyL, dutyR)
     gc.collect()
+
+

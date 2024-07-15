@@ -212,9 +212,9 @@ Tips: 主函数部分
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 
 while True:
-    if (ticker_flag):
+    if ticker_flag:
         runTimes += 1
-        if runTimes % 200 == 0:
+        if runTimes % 300 == 0:
             lcd.clear(0x0000)
             runTimes = 0
             # print("主函数已运行3000次，目前的赛道图片截取到 history1 and history2")
@@ -225,13 +225,13 @@ while True:
             # 初始确定CCD1和CCD2的阈值
             ccdThresholdDetermination = 1
             T1 = T2 = 0
-            for _ in range(0, 10):
+            for _ in range(0, 100):
                 originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
                 originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
                 T1 += threshold_determination(originalCcdData1)
                 T2 += threshold_determination(originalCcdData2)
-            T1 = T1 / 10.0
-            T2 = T2 / 10.0
+            T1 = T1 / 100.0
+            T2 = T2 / 100.0
 
         if not Statu:
             ccdSuper = 0
@@ -264,8 +264,8 @@ while True:
             last10Middle1 = [mid_line_short] + last10Middle1[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             last10Middle2 = [mid_line_long] + last10Middle2[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             # 这个mid_line_long 的计算方法是，目前中线占10%权重，历史中线占90%权重，最后+n补充，目前n=0
-            averageMedLine1 = 0.01 * mid_line_short + 0.99 * sum(last10Middle1) / 10 + 0
-            averageMedLine2 = 0.01 * mid_line_long + 0.99 * sum(last10Middle2) / 10 + 0
+            averageMedLine1 = 0.01 * mid_line_short + 0.9 * sum(last10Middle1) / 10 + 0
+            averageMedLine2 = 0.01 * mid_line_long + 0.9 * sum(last10Middle2) / 10 + 0
             ccdSuper_short = mid_line_short - 64
             ccdSuper_long = mid_line_long - 64
 
@@ -277,7 +277,7 @@ while True:
             if flag != 50 and flag != 501 and flag != 5:
                 """十字路口判别"""
                 # Step1 当CCD1识别到直道,但是CCD2识别到全白
-                if trueValue1 < 70000 and trueValue2 > 70000 and abs(mid_line_short - 64) <= 10:
+                if trueValue1 < 70000 < trueValue2 and abs(mid_line_short - 64) <= 10:
                     crossFlag = 17788
                     ccdSuper = ccdSuper_short
 
@@ -287,13 +287,12 @@ while True:
                         crossFlag = 27788
 
                 # Step3 当CCD2识别到直道,但是CCD1识别到全白
-                if trueValue2 < 60000 and trueValue1 > 70000 and abs(mid_line_long - 64) <= 10:
+                if trueValue2 < 70000 < trueValue1 and abs(mid_line_long - 64) <= 10:
                     crossFlag = 37788
                     ccdSuper = ccdSuper_long
 
                 # Step4 CCD1 和 CCD2 均判断为直道特征
-                if (
-                        crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and trueValue1 < 70000 and trueValue2 < 70000:
+                if (crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and trueValue1 < 70000 and trueValue2 < 70000:
                     crossFlag = 0
 
                 if crossFlag == 17788:
@@ -369,6 +368,7 @@ while True:
                 print(f"realLastFlag： {realLastFlag}")
 
         lastCcdSuper = ccdSuper  # 上一次的误差
+        gc.collect()
         ticker_flag = False  # 定时器关断标志
 
     """屏幕显示部分"""
@@ -490,9 +490,9 @@ while True:
     """数据展示菜单(2级)"""
     if menu == 2:
         display_strings(lcd, ["ccdSuper1", "ccdSuper2", "ccdSuper", "angle", "flag", "Yaw", "trueValue1", "trueValue2",
-                              "crossFlag", "crossSuper"],
+                              "crossFlag", "crossSuper", "runTimes"],
                         [ccdSuper_short, ccdSuper_long, ccdSuper, angle, flag, Yaw, int(trueValue1),
-                         int(trueValue2), crossFlag, crossSuper])
+                         int(trueValue2), crossFlag, crossSuper, runTimes])
 
     """数据采集菜单(2级)"""
     if menu == 3:
