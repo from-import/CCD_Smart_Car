@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 from CCD_Tool import find_road_edges
-from Find_Circle import is_circle,fill_line
-from Find_Barrier import find_barrier
+from Get_CCD import read_ccd_data, search
 
 # 十字路口的数据
 cross1 = [
@@ -116,7 +115,16 @@ anydata2 = [[142,142,150,150,153,152,149,160,156,154,155,161,165,166,166,167,178
 [141,143,149,151,153,149,148,148,158,147,155,160,172,164,171,171,159,173,181,180,182,183,179,179,185,185,188,188,194,179,187,189,197,198,195,195,159,189,316,498,523,541,556,558,562,560,569,571,573,564,574,575,575,565,565,557,557,550,548,547,539,537,537,532,532,515,509,500,492,494,490,475,459,392,220,160,168,176,170,171,171,157,164,150,162,159,153,141,157,144,150,140,155,137,143,162,138,121,141,151,158,147,137,133,133,119,134,123,131,125,133,124,131,130,121,125,116,119,115,107,115,117,119,112,120,119,121,109,]]
 
 
+print(len(cross1))
+plt.imshow(cross1, cmap='gray', interpolation='nearest')
+plt.colorbar()
+plt.title("Grayscale Image of cross1 Data")
+plt.show()
 
+plt.imshow(cross2, cmap='gray', interpolation='nearest')
+plt.colorbar()
+plt.title("Grayscale Image of cross2 Data")
+plt.show()
 
 
 
@@ -145,21 +153,29 @@ left = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 ImageCreate(left, "left")
 """
 
-print(len(cross1))
-plt.imshow(cross1, cmap='gray', interpolation='nearest')
-plt.colorbar()
-plt.title("Grayscale Image of cross1 Data")
-plt.show()
+def ImageCreate(ccd_data, name, lastMiddlePosition=64,midline = None):
+    left_edge, right_edge, mid_line = find_road_edges(ccd_data,lastMiddlePosition)
+    plt.figure(figsize=(8, 6))
+    plt.plot(ccd_data, label=name, color='red')
+    plt.axvline(x=mid_line, color='blue', linestyle='-', label='Middle Line')
+    plt.axvline(x=64, color='black', linestyle='--', label='x=64')
+    if midline:
+        plt.axvline(x=midline, color='#006400', linestyle='--', label='CircleFilledMidline')
 
-plt.imshow(cross2, cmap='gray', interpolation='nearest')
-plt.colorbar()
-plt.title("Grayscale Image of cross1 Data")
-plt.show()
+    plt.title(name)
+    plt.xlabel(f'left, mid_line, right: {left_edge, mid_line, right_edge}')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.show()
 
-def ImageCreate2(ccd_data1, name1, ccd_data2, name2, lastMiddlePosition1=64, lastMiddlePosition2=64, midline1=None, midline2=None):
+
+
+
+def ImageCreate2(ccd_data1, name1, ccd_data2, name2,
+lastMiddlePosition1=64, lastMiddlePosition2=64, midline1=None, midline2=None):
+
     left_edge1, right_edge1, mid_line1 = find_road_edges(ccd_data1, lastMiddlePosition1)
-    left_edge2, right_edge2, mid_line2 = find_road_edges(ccd_data2, lastMiddlePosition2)
-
+    left_edge2, right_edge2, mid_line2 = search(ccd_data2)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
 
     # Plot for ccd_data1
@@ -187,25 +203,12 @@ def ImageCreate2(ccd_data1, name1, ccd_data2, name2, lastMiddlePosition1=64, las
     plt.tight_layout()
     plt.show()
 
-def ImageCreate(ccd_data, name, lastMiddlePosition=64,midline = None):
-    left_edge, right_edge, mid_line = find_road_edges(ccd_data,lastMiddlePosition)
-    plt.figure(figsize=(8, 6))
-    plt.plot(ccd_data, label=name, color='red')
-    plt.axvline(x=mid_line, color='blue', linestyle='-', label='Middle Line')
-    plt.axvline(x=64, color='black', linestyle='--', label='x=64')
-    if midline:
-        plt.axvline(x=midline, color='#006400', linestyle='--', label='CircleFilledMidline')
 
-    plt.title(name)
-    plt.xlabel(f'left, mid_line, right: {left_edge, mid_line, right_edge}')
-    plt.ylabel('Value')
-    plt.legend()
-    plt.show()
 
-from Get_CCD import read_ccd_data
-for i in range(0, len(cross2)):
-    ccd_data = read_ccd_data(cross1[i], cross2[i], 500, 500)
-    ImageCreate2(ccd_data[0], "ccd1", ccd_data[1], "ccd2")
+for i in range(0, len(cross1)):
+    ccd_data = read_ccd_data(cross1[i], cross2[i], 500, 500,0)
+    originCcdData = cross2[i]
+    ImageCreate2(ccd_data[1], "ccd1", originCcdData, "ccd1")
 """
 for i in range(0,len(fullCircle_ccd1)):
     ImageCreate2(fullCircle_ccd1[i],"ccd1", fullCircle_ccd2[i], "ccd2")

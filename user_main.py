@@ -38,7 +38,8 @@ CCD 初始化，调用案例：
 # print(ccd_data2)
 """
 
-from Get_CCD import read_ccd_data, find_road_edges, threshold_determination
+from Get_CCD import read_ccd_data, find_road_edges, threshold_determination, white
+from Get_CCD import search
 
 # 调用 TSL1401 模块获取 CCD 实例
 # 参数是采集周期 调用多少次 capture/read 更新一次数据
@@ -144,9 +145,22 @@ averageMedLine1 = averageMedLine2 = 64
 ccd_data1 = ccd_data2 = originalCcdData1 = originalCcdData2 = [0] * 128
 crossFlag = 0
 width1 = width2 = 0
+searchMidline2 = searchMidline1 = 0
+searchFlag1 = searchFlag2 = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+
+
+# 计算跳变点数
+def count_transitions(data):
+    # 合计跳变数
+    transitions = 0
+    for i in range(1, len(data)):
+        if data[i] != data[i - 1]:
+            transitions += 1
+
+    return transitions
 
 
 # 定义一个回调函数（定时运行程序可以写在里面）
@@ -159,7 +173,7 @@ def time_pit_handler(time):
     # 电机运行程序
     control_motor(motor_l, motor_r, ccdSuper, Statu, flag, speedSet)
     # 舵机运行程序
-    angle = set_servo_angle(pwm_servo, ccdSuper, flag)
+    angle = set_servo_angle(pwm_servo, ccdSuper, flag, ccd_data1)
     # 陀螺仪
     imu_data = imu.get()  # 通过 get 接口读取数据
     current_rate = int(float(imu_data[5]) / 151)  # 计算当前角速度并归一化
@@ -215,7 +229,7 @@ Tips: 主函数部分
 while True:
     if ticker_flag:
         runTimes += 1
-        if runTimes % 100 == 0:
+        if runTimes % 50 == 0:
             lcd.clear(0x0000)
             gc.collect()
             runTimes = 0
@@ -232,8 +246,8 @@ while True:
                 originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
                 T1 += threshold_determination(originalCcdData1)
                 T2 += threshold_determination(originalCcdData2)
-            T1 = T1 / 100.0
-            T2 = T2 / 100.0
+            T1 = 0.8 * (T1 / 100.0)
+            T2 = 0.8 * (T2 / 100.0)
 
         if not Statu:
             ccdSuper = 0
@@ -253,6 +267,8 @@ while True:
             # 计算ccd_data所有值的求和
             trueValue1 = sum(filteredCcdData1)
             trueValue2 = sum(filteredCcdData2)
+            searchLeft1, searchRight1, searchMidline1,searchFlag1 = search(filteredCcdData1)
+            searchLeft2, searchRight2, searchMidline2,searchFlag2 = search(filteredCcdData2)
             ccd_data = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2, crossFlag)  # 获取二值化后的ccd_data
             ccd_data1 = ccd_data[0]  # 近端ccd
             ccd_data2 = ccd_data[1]  # 远端ccd
@@ -262,8 +278,24 @@ while True:
             history1[0] = ccd_data1  # history1 存储了最近100次的ccd_data1值
             history2[1:] = history2[:-1]
             history2[0] = ccd_data2  # history2 存储了最近100次的ccd_data2值
-            left_edge_short, right_edge_short, mid_line_short = find_road_edges(ccd_data1, flag, 1)  # 提取CCD1的边线和中线
-            left_edge_long, right_edge_long, mid_line_long = find_road_edges(ccd_data2, flag, 2)  # 提取CCD2的边线和中线
+            # 凡是区间太大的都切了
+            if flag != 40 and flag != 5 and flag != 501 and flag != 50:
+                if width1 > 80:
+                    ccd_data1_other = white(ccd_data1)
+                else:
+                    ccd_data1_other = ccd_data1
+
+                if width2 > 60:
+                    ccd_data2_other = white(ccd_data2)
+                else:
+                    ccd_data2_other = ccd_data2
+            else:
+                ccd_data1_other = ccd_data1
+                ccd_data2_other = ccd_data2
+
+            left_edge_short, right_edge_short, mid_line_short = find_road_edges(ccd_data1_other, flag,
+                                                                                1)  # 提取CCD1的边线和中线
+            left_edge_long, right_edge_long, mid_line_long = find_road_edges(ccd_data2_other, flag, 2)  # 提取CCD2的边线和中线
             last10Middle1 = [mid_line_short] + last10Middle1[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             last10Middle2 = [mid_line_long] + last10Middle2[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             # 这个mid_line_long 的计算方法是，目前中线占10%权重，历史中线占90%权重，最后+n补充，目前n=0
@@ -278,9 +310,9 @@ while True:
             if abs(ccdSuper_long - ccdSuper_short) > 9 or flag != 0:
                 ccdSuper = ccdSuper_short  # 车辆转入急弯时切换镜头，同时存在元素情况时也切换镜头
 
-            # 环的过程中不应该有误判
-            if flag != 50 and flag != 501 and flag != 5:
-                """十字路口判别"""
+                # 环的过程中不应该有误判
+                # if flag != 50 and flag != 501 and flag != 5:
+                """十字路口判别
 
                 if crossFlag == 27788:
                     # Step3 当CCD2识别到直道,但是CCD1识别到全白
@@ -309,7 +341,7 @@ while True:
                     ccdSuper = 0
 
                 if crossFlag == 37788:
-                    ccdSuper = averageMedLineCcdSuper1
+                    ccdSuper = averageMedLineCcdSuper1"""
 
             # 满足这个条件才是2023预入环
             if (80000 > trueValue1 > 70000) and (70000 < trueValue2 < 80000) and flag == 2023:
@@ -318,7 +350,7 @@ while True:
                 flag = 0
 
             # 圆环
-            if not flag:
+            """if not flag:
                 flag = Element_flag(ccd_data2, left_edge_long, right_edge_long, ahead, Yaw, ccd_data2)
 
             # 十字过程中不应该有误判
@@ -332,7 +364,9 @@ while True:
                 # 我们给flag赋予正确的值并关断ahead开关
                 elif flag == 2023:
                     flag = 4
-                    ahead = 0
+                    ahead = 0"""
+
+            flag = Element_flag(ccd_data1, left_edge_short, right_edge_short, ahead, Yaw, ccd_data2)
 
             if flag == 4 or flag == 2023:
                 ccdSuper = ccdSuper_short
@@ -349,6 +383,11 @@ while True:
         if sum(1 for x in ccd_data1 if x == 1) < 8:
             flag = 0
             crossFlag = 0
+
+        # 读取跳变点
+        number = count_transitions(ccd_data1)
+        if number > 4 and abs(mid_line_long - 64) < 7 and width1 < 40:
+            flag = 10
 
         # 蜂鸣器简单调用
         # 预备阶段响铃
@@ -376,15 +415,18 @@ while True:
     """屏幕显示部分"""
     key_1, key_2, key_3, Statu = Key_data(key)
     if key_1:
-        print("key1")
-        displayCheck += 1
-        if menu == 3:
-            print("正在添加CCD数据，请勿操作")
-            originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
-            originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
-            user_data1.append(originalCcdData1)
-            user_data2.append(originalCcdData2)
-            print("CCD数据添加完成，可以继续操作")
+        if displayCheck == 5:
+            displayCheck = 0
+        else:
+            print("key1")
+            displayCheck += 1
+            if menu == 3:
+                print("正在添加CCD数据，请勿操作")
+                originalCcdData1 = ccd.get(0)  # 读取原始的CCD数据
+                originalCcdData2 = ccd.get(1)  # 读取原始的CCD数据
+                user_data1.append(originalCcdData1)
+                user_data2.append(originalCcdData2)
+                print("CCD数据添加完成，可以继续操作")
 
     if key_2:
         print("key2")
@@ -453,6 +495,11 @@ while True:
             menu = 4
             displayCheck = 999
 
+        if displayCheck == 5 and menu == 0:
+            print("跳转到元素展示菜单2了")
+            menu = 5
+            displayCheck = 999
+
         if displayCheck == 1 and menu == 1:
             print("速度设置为60了")
             speedSet = 60
@@ -468,39 +515,44 @@ while True:
 
         lcd.clear(0x0000)
 
+    """屏幕显示部分"""
     """初级菜单(1级)"""
     if displayCheck == 0 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
-                        [1.11, 0, 0, 0, 0])
+        display_strings(lcd, ["flag ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2", "wave"],
+                        [flag, 0, 0, 0, 0, 0])
 
     if displayCheck == 1 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
-                        [0, 1.11, 0, 0, 0])  # menu = 1
+        display_strings(lcd, ["flag ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2", "wave"],
+                        [flag, 1, 0, 0, 0, 0])  # menu = 1
 
     if displayCheck == 2 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
-                        [0, 0, 1.11, 0, 0])  # menu = 2
+        display_strings(lcd, ["flag ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2", "wave"],
+                        [flag, 0, 1, 0, 0, 0])  # menu = 2
 
     if displayCheck == 3 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
-                        [0, 0, 0, 1.11, 0])  # menu = 3
+        display_strings(lcd, ["flag ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2", "wave"],
+                        [flag, 0, 0, 1, 0, 0])  # menu = 3
 
     if displayCheck == 4 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
-                        [0, 0, 0, 0, 1.11])  # menu = 4
+        display_strings(lcd, ["flag ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2", "wave"],
+                        [flag, 0, 0, 0, 1, 0])  # menu = 4
+
+    if displayCheck == 5 and menu == 0:
+        display_strings(lcd, ["flag ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2", "wave"],
+                        [flag, 0, 0, 0, 0, 1])  # menu = 5
 
     """速度设定菜单(2级)"""
     if displayCheck == 0 and menu == 1:
-        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [1.11, 0, 0, 0])
+        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [1, 0, 0, 0])
 
     if displayCheck == 1 and menu == 1:
-        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [0, 1.11, 0, 0])
+        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [0, 1, 0, 0])
 
     if displayCheck == 2 and menu == 1:
-        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [0, 0, 1.11, 0])
+        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [0, 0, 1, 0])
 
     if displayCheck == 3 and menu == 1:
-        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [0, 0, 0, 1.11])
+        display_strings(lcd, ["Choose Speed", "60 ", "80", "90"], [0, 0, 0, 1])
 
     """数据展示菜单(2级)"""
     if menu == 2:
@@ -519,17 +571,29 @@ while True:
 
     """数据展示菜单(2级)"""
     if menu == 4:
+        smallCcd = ''.join(map(str, ccd_data1[::12]))
+        bigCcd = ''.join(map(str, ccd_data2[::12]))
         display_strings(lcd,
-                        ["flag", "width1", "width2", "trueValue1", "trueValue2"],
-                        [flag, width1, width2, int(trueValue1), int(trueValue2)])
+                        ["flag","crossFlag","searchFlag","searchFlag2", "ccd1", "ccd2", "width1", "width2", "T1", "T2",
+                         "searchMidline1", "searchMidline2"],
+                        [flag, crossFlag, searchFlag1, searchFlag2, smallCcd, bigCcd, width1, width2, T1, T2,
+                         searchMidline1, searchMidline2])
 
-    # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
-    # lcd.wave(0, 0, 128, 64, ccd_data1, max=200)
-    # lcd.wave(0, 64, 128, 64, ccd_data2, max=200)
+    if menu == 5:
+        if runTimes % 10 == 0:
+            lcd.clear(0x0000)
+        lcd.wave(0, 0, 128, 64, ccd_data1, max=2)
+        lcd.wave(0, 64, 128, 64, ccd_data2, max=2)
 
+    """ 屏幕显示部分结束"""
     # 按键跳出程序
     if end_switch.value() != end_state:
         pit1.stop()
         print("Ticker stop.")
         break
     gc.collect()
+
+
+
+
+

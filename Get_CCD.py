@@ -2,6 +2,60 @@ from machine import *
 from seekfree import TSL1401
 
 
+
+def search(pixel, got_yuzhi=100, flag=0):
+    max_peak = 0
+    rising_edge_cnt = 0
+    falling_edge_cnt = 0
+    rising_edge = [0] * 5
+    falling_edge = [0] * 5
+    ccd_diff = [0] * 128
+
+    # 求出最大的差分值
+    for i in range(3, 128):
+        ccd_diff[i] = pixel[i] - pixel[i - 3]
+        if abs(ccd_diff[i]) > max_peak:
+            max_peak = abs(ccd_diff[i])
+
+    # 寻找上升沿和下降沿
+    for i in range(4, 127):
+        if (ccd_diff[i] >= ccd_diff[i - 1]) and (ccd_diff[i] > ccd_diff[i + 1]) and (ccd_diff[i] > got_yuzhi):
+            if rising_edge_cnt < 5:
+                rising_edge[rising_edge_cnt] = i
+                rising_edge_cnt += 1
+        if (ccd_diff[i] < ccd_diff[i - 1]) and (ccd_diff[i] <= ccd_diff[i + 1]) and (ccd_diff[i] < -got_yuzhi):
+            if falling_edge_cnt < 5:
+                falling_edge[falling_edge_cnt] = i
+                falling_edge_cnt += 1
+
+    if rising_edge_cnt == 0 and falling_edge_cnt == 0:
+        searchFlag = 1
+    else:
+        searchFlag = 0
+
+    left, right = 0, 0
+    left_last_find, right_last_find = False, False
+
+    # 处理左边和右边的检测逻辑
+    if rising_edge_cnt > 0:
+        left = rising_edge[0]
+        left_last_find = True
+    if falling_edge_cnt > 0:
+        right = falling_edge[0]
+        right_last_find = True
+
+    if left_last_find and right_last_find:
+        if right < left:
+            left_last_find = False
+            right_last_find = False
+
+    if left_last_find and right_last_find:
+        reference_width = right - left
+
+    return left, right, (left + right) // 2, searchFlag
+
+
+
 def get_mid(a, b, c):
     # 获取三个值中的中间值。
     x = 0
@@ -105,16 +159,14 @@ def read_ccd_data(ccd_data1, ccd_data2, T1, T2, crossFlag, flag=0):
     binary_ccd1 = binary_thresholding(filtered_ccd1, T1)
     binary_ccd2 = binary_thresholding(filtered_ccd2, T2)
 
-    n = 20
-    if crossFlag == 27788:
-        binary_ccd1[:n] = [0] * n
-        binary_ccd1[-n:] = [0] * n
-        binary_ccd2[:n] = [0] * n
-        binary_ccd2[-n:] = [0] * n
-
-
     return [binary_ccd1, binary_ccd2]
 
+
+def white(ccd_data):
+    n = 40
+    ccd_data[:n] = [0] * n
+    ccd_data[-n:] = [0] * n
+    return ccd_data
 
 """
 find_road_edges : 查找道路左侧和右侧的边界位置，并计算中线位置。
@@ -188,7 +240,7 @@ def find_road_edges(ccd_data, flag, name):
 
         flag = 40 入环   舵机打角，由mid_line选定打角方向
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    print(name)
+    #print(name)
     if name == 1:
         if flag:
             if Special_Elements(left_edge, right_edge, flag, mid_line):
@@ -216,33 +268,26 @@ def Special_Elements(left_edge, right_edge, flag, line):
             leftOrRight = 1 if (abs(left_edge - 64) > abs(right_edge - 64)) else 0
             # print(leftOrRight)
         # 单边找补，补到中线
-        mid_line = right_edge - 22 if leftOrRight else left_edge + 22
+        mid_line = right_edge - 20 if leftOrRight else left_edge + 20
         return mid_line
 
     if flag == 40:
-        mid_line = right_edge - 30 if not leftOrRight else left_edge + 30
+        mid_line = right_edge - 22 if not leftOrRight else left_edge + 22
         return mid_line
 
     # 圆环特殊补线，可以调整大小，为急弯
     if flag == 5:
-        if leftOrRight and line > 64:
-            return 50
-        elif not leftOrRight and line < 64:
-            return 78
-        mid_line = right_edge - 40 if leftOrRight else left_edge + 40
+        mid_line = right_edge - 30 if leftOrRight else left_edge + 30
         return mid_line
 
     if flag == 501:
-        mid_line = 45 if leftOrRight else 83
+        mid_line = 83 if not leftOrRight else 45
         return mid_line
 
     if flag == 50:
         # 单边找补，补到中线（左近环右边补，右进环左边补）
         mid_line = right_edge - 20 if leftOrRight else left_edge + 20
         return mid_line
-
-    if flag == 27788:
-        return 64
 
 
 """
@@ -267,6 +312,7 @@ u 型弯道和 0 型弯道可以认为是多个同方向普通弯道连接在一
 def calculate_curvature(x1, x2, x3):
     curvature = abs((x3 - x2) - (x2 - x1))
     return curvature
+
 
 
 
