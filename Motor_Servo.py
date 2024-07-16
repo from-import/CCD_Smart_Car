@@ -13,10 +13,9 @@ def duty_angle(angle):
 
 
 def set_servo_angle(pwm_servo, offset,flag):
-    #global error_pre_last,error_pre
+    # global error_pre_last,error_pre
     """
     控制舵机的转动角度。
-
     参数:
     pwm_servo (PWM): 舵机实例。
     offset: 偏差值，由Get_CCD计算返回。
@@ -24,7 +23,7 @@ def set_servo_angle(pwm_servo, offset,flag):
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: 偏差计算对应角度(左负右正)
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    if offset > 0:
+    """if offset > 0:
         nature = 1
     else:
         nature = 0
@@ -40,25 +39,25 @@ def set_servo_angle(pwm_servo, offset,flag):
 
     if nature == 1:
         offset = -offset
-        offset = offset * 13 / (a * 17 - 85.1935)
+        offset = offset * 14 / (a * 17 - 85.1935)
     else:
-        offset = offset * 11 / (a * 17 - 85.1935)
-    """# 转变为三次曲线
+        offset = offset * 11 / (a * 17 - 85.1935)"""
+    """# 转变为三次曲线"""
     if (offset > 0):
         nature = 1
     else:
         nature = 0
-    a = 0.006
-    b = 0.5
-    c = 0.02
+    a = 0.02
+    b = 0.06
+    c = 4
     offset = a * pow(abs(offset), 3) + b * pow(offset, 2) + c * abs(offset)
     # 图像可接受误差（无限大时为64）23（max0ffset）——》(nature = 1,13;else,16)
-    #注意，目前的三次函数认为8，18，18++为关键节点，23后打死
+    #注意，目前的三次函数认为5，10，17++为关键节点，17后打死
     if nature == 1:
         offset = -offset
-        offset = offset * 13 / (a * pow(23, 3) + b * pow(23, 2) + c * pow(23, 1))
+        offset = offset * 14 / (a * pow(17, 3) + b * pow(17, 2) + c * pow(17, 1))
     else:
-        offset = offset * 16 / (a * pow(23, 3) + b * pow(23, 2) + c * pow(23, 1))"""
+        offset = offset * 11 / (a * pow(17, 3) + b * pow(17, 2) + c * pow(17, 1))
     """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Tips: PID调参(代码拷贝见7.4压缩包，此处为美观不展示)
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -79,8 +78,8 @@ def set_servo_angle(pwm_servo, offset,flag):
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
     if angle > 112:
         angle = 112
-    elif angle < 88:
-        angle = 88
+    elif angle < 87:
+        angle = 87
 
     # 获取舵机中值角度对应占空比
     duty_servo = duty_angle(angle)
@@ -89,7 +88,5 @@ def set_servo_angle(pwm_servo, offset,flag):
 
     gc.collect()
     return angle
-
-
 
 

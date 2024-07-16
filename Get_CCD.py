@@ -105,7 +105,7 @@ def read_ccd_data(ccd_data1, ccd_data2, T1, T2, crossFlag, flag=0):
     binary_ccd1 = binary_thresholding(filtered_ccd1, T1)
     binary_ccd2 = binary_thresholding(filtered_ccd2, T2)
 
-    n = 15
+    n = 20
     if crossFlag == 27788:
         binary_ccd1[:n] = [0] * n
         binary_ccd1[-n:] = [0] * n
@@ -267,6 +267,7 @@ u 型弯道和 0 型弯道可以认为是多个同方向普通弯道连接在一
 def calculate_curvature(x1, x2, x3):
     curvature = abs((x3 - x2) - (x2 - x1))
     return curvature
+
 
 
 

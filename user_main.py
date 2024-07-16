@@ -132,7 +132,7 @@ num = 0
 runTimes = 0
 displayCheck = menu = 0
 speedSet = 48
-last10Middle1 = last10Middle2 = [0] * 10
+last10Middle1 = last10Middle2 = [0] * 5
 trueValue1 = trueValue2 = 0
 lastCcdSuper = 0
 history1 = [[0] * 128 for _ in range(50)]
@@ -143,6 +143,7 @@ crossSuper = 0
 averageMedLine1 = averageMedLine2 = 64
 ccd_data1 = ccd_data2 = originalCcdData1 = originalCcdData2 = [0] * 128
 crossFlag = 0
+width1 = width2 = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
@@ -166,6 +167,7 @@ def time_pit_handler(time):
     if flag == 4:
         Yaw = 0
 
+
 def filter_ccd_data(ccd_data):
     # 过滤掉所有大于1000的值
     filtered_data = [value if value <= 1000 else 0 for value in ccd_data]
@@ -178,10 +180,9 @@ def filter_ccd_data(ccd_data):
 
     return smoothed_data
 
-# 选定1号定时器
-pit1 = ticker(1)
 
-# 关联采集接口 最少一个 最多八个
+# 选定1号定时器
+pit1 = ticker(1)  # 关联采集接口 最少一个 最多八个
 # 编码器关联,ccd关联
 pit1.capture_list(encoder_l, encoder_r, ccd, key, imu)
 # 关联 Python 回调函数
@@ -214,8 +215,9 @@ Tips: 主函数部分
 while True:
     if ticker_flag:
         runTimes += 1
-        if runTimes % 300 == 0:
+        if runTimes % 100 == 0:
             lcd.clear(0x0000)
+            gc.collect()
             runTimes = 0
             # print("主函数已运行3000次，目前的赛道图片截取到 history1 and history2")
             # write_ccd_in_txt(history1, "history1")
@@ -252,9 +254,10 @@ while True:
             trueValue1 = sum(filteredCcdData1)
             trueValue2 = sum(filteredCcdData2)
             ccd_data = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2, crossFlag)  # 获取二值化后的ccd_data
-
             ccd_data1 = ccd_data[0]  # 近端ccd
             ccd_data2 = ccd_data[1]  # 远端ccd
+            width1 = sum(1 for value in ccd_data1 if value == 1)
+            width2 = sum(1 for value in ccd_data2 if value == 1)
             history1[1:] = history1[:-1]
             history1[0] = ccd_data1  # history1 存储了最近100次的ccd_data1值
             history2[1:] = history2[:-1]
@@ -264,45 +267,49 @@ while True:
             last10Middle1 = [mid_line_short] + last10Middle1[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             last10Middle2 = [mid_line_long] + last10Middle2[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             # 这个mid_line_long 的计算方法是，目前中线占10%权重，历史中线占90%权重，最后+n补充，目前n=0
-            averageMedLine1 = 0.01 * mid_line_short + 0.9 * sum(last10Middle1) / 10 + 0
-            averageMedLine2 = 0.01 * mid_line_long + 0.9 * sum(last10Middle2) / 10 + 0
+            averageMedLine1 = 0.1 * mid_line_short + 0.9 * sum(last10Middle1) / 10 + 0
+            averageMedLine2 = 0.1 * mid_line_long + 0.9 * sum(last10Middle2) / 10 + 0
+            averageMedLineCcdSuper1 = averageMedLine1 - 64
+            averageMedLineCcdSuper2 = averageMedLine2 - 64
             ccdSuper_short = mid_line_short - 64
             ccdSuper_long = mid_line_long - 64
 
             ccdSuper = ccdSuper_long  # 正常情况下采用CCD2循迹
-            if abs(ccdSuper_long - ccdSuper_short) > 10 or flag != 0:
+            if abs(ccdSuper_long - ccdSuper_short) > 9 or flag != 0:
                 ccdSuper = ccdSuper_short  # 车辆转入急弯时切换镜头，同时存在元素情况时也切换镜头
 
             # 环的过程中不应该有误判
             if flag != 50 and flag != 501 and flag != 5:
                 """十字路口判别"""
-                # Step1 当CCD1识别到直道,但是CCD2识别到全白
-                if trueValue1 < 70000 < trueValue2 and abs(mid_line_short - 64) <= 10:
-                    crossFlag = 17788
-                    ccdSuper = ccdSuper_short
+
+                if crossFlag == 27788:
+                    # Step3 当CCD2识别到直道,但是CCD1识别到全白
+                    if width2 < 80 and width1 > 100 and abs(mid_line_long - 64) <= 10:
+                        crossFlag = 37788
+                        ccdSuper = ccdSuper_long
 
                 # Step2 当CCD1 和 CCD2 均为全白
                 if crossFlag == 17788:
-                    if trueValue1 > 70000 and trueValue2 > 70000:
+                    if width1 > 80 and width2 > 80:
                         crossFlag = 27788
 
-                # Step3 当CCD2识别到直道,但是CCD1识别到全白
-                if trueValue2 < 70000 < trueValue1 and abs(mid_line_long - 64) <= 10:
-                    crossFlag = 37788
-                    ccdSuper = ccdSuper_long
+                # Step1 当CCD1识别到直道,但是CCD2识别到全白
+                if width1 < 70 and width2 > 100 and abs(mid_line_short - 64) <= 10:
+                    crossFlag = 17788
+                    ccdSuper = averageMedLineCcdSuper1
 
                 # Step4 CCD1 和 CCD2 均判断为直道特征
-                if (crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and trueValue1 < 70000 and trueValue2 < 70000:
+                if (crossFlag == 17788 or crossFlag == 27788 or crossFlag == 37788) and width1 < 60 and width2 < 60:
                     crossFlag = 0
 
                 if crossFlag == 17788:
-                    ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
+                    ccdSuper = min(averageMedLineCcdSuper1, averageMedLineCcdSuper2, key=abs)
 
                 if crossFlag == 27788:
-                    ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
+                    ccdSuper = 0
 
                 if crossFlag == 37788:
-                    ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
+                    ccdSuper = averageMedLineCcdSuper1
 
             # 满足这个条件才是2023预入环
             if (80000 > trueValue1 > 70000) and (70000 < trueValue2 < 80000) and flag == 2023:
@@ -313,6 +320,7 @@ while True:
             # 圆环
             if not flag:
                 flag = Element_flag(ccd_data2, left_edge_long, right_edge_long, ahead, Yaw, ccd_data2)
+
             # 十字过程中不应该有误判
             elif crossFlag != 27788 and crossFlag != 37788:
                 flag = Element_flag(ccd_data1, left_edge_short, right_edge_short, ahead, Yaw, ccd_data2)
@@ -328,12 +336,6 @@ while True:
 
             if flag == 4 or flag == 2023:
                 ccdSuper = ccdSuper_short
-
-            # if trueValue1 > 81000 or trueValue2 > 81000:
-            # flag = 0
-
-            # if (trueValue1 < 70000 or trueValue2 < 70000) and flag == 2023:
-            # flag = 0
 
         last_flag = flag
         if flag != last_flag:
@@ -437,13 +439,18 @@ while True:
             displayCheck = 0
 
         if displayCheck == 2 and menu == 0:
-            print("跳转到元素展示菜单了")
+            print("跳转到元素展示菜单1了")
             menu = 2
             displayCheck = 0
 
         if displayCheck == 3 and menu == 0:
             print("跳转到数据采集菜单了")
             menu = 3
+            displayCheck = 999
+
+        if displayCheck == 4 and menu == 0:
+            print("跳转到元素展示菜单2了")
+            menu = 4
             displayCheck = 999
 
         if displayCheck == 1 and menu == 1:
@@ -463,16 +470,24 @@ while True:
 
     """初级菜单(1级)"""
     if displayCheck == 0 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save"], [1.11, 0, 0, 0])
+        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
+                        [1.11, 0, 0, 0, 0])
 
     if displayCheck == 1 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save"], [0, 1.11, 0, 0])  # menu = 1
+        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
+                        [0, 1.11, 0, 0, 0])  # menu = 1
 
     if displayCheck == 2 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save"], [0, 0, 1.11, 0])  # menu = 2
+        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
+                        [0, 0, 1.11, 0, 0])  # menu = 2
 
     if displayCheck == 3 and menu == 0:
-        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save"], [0, 0, 0, 1.11])  # menu = 3
+        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
+                        [0, 0, 0, 1.11, 0])  # menu = 3
+
+    if displayCheck == 4 and menu == 0:
+        display_strings(lcd, ["Menu1 ", "Choose Speed ", "Show Elements ", "Data Save", "Show Elements2"],
+                        [0, 0, 0, 0, 1.11])  # menu = 4
 
     """速度设定菜单(2级)"""
     if displayCheck == 0 and menu == 1:
@@ -489,15 +504,24 @@ while True:
 
     """数据展示菜单(2级)"""
     if menu == 2:
-        display_strings(lcd, ["ccdSuper1", "ccdSuper2", "ccdSuper", "angle", "flag", "Yaw", "trueValue1", "trueValue2",
-                              "crossFlag", "crossSuper", "runTimes"],
-                        [ccdSuper_short, ccdSuper_long, ccdSuper, angle, flag, Yaw, int(trueValue1),
-                         int(trueValue2), crossFlag, crossSuper, runTimes])
+        display_strings(lcd,
+                        ["ccdSuper1", "ccdSuper2", "ccdSuper", "angle", "flag", "Yaw", "crossFlag", "crossSuper",
+                         "mid_line_short", "mid_line_long", "runTimes"],
+
+                        [ccdSuper_short, ccdSuper_long, ccdSuper, angle, flag, Yaw, crossFlag, crossSuper,
+                         mid_line_short, mid_line_long, runTimes])
 
     """数据采集菜单(2级)"""
     if menu == 3:
-        display_strings(lcd, ["Press confirm", "CCD1: ", "CCD2: "],
+        display_strings(lcd,
+                        ["Press confirm", "CCD1: ", "CCD2: "],
                         [0, len(user_data1), len(user_data2)])
+
+    """数据展示菜单(2级)"""
+    if menu == 4:
+        display_strings(lcd,
+                        ["flag", "width1", "width2", "trueValue1", "trueValue2"],
+                        [flag, width1, width2, int(trueValue1), int(trueValue2)])
 
     # 通过 wave 接口显示数据波形 (x,y,width,high,data,data_max)
     # lcd.wave(0, 0, 128, 64, ccd_data1, max=200)
@@ -509,11 +533,3 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
-
-
-
-
-
-
-
-
