@@ -39,7 +39,6 @@ CCD 初始化，调用案例：
 """
 
 from Get_CCD import read_ccd_data, find_road_edges, threshold_determination, white
-from Get_CCD import search
 
 # 调用 TSL1401 模块获取 CCD 实例
 # 参数是采集周期 调用多少次 capture/read 更新一次数据
@@ -148,20 +147,46 @@ width1 = width2 = 0
 searchMidline2 = searchMidline1 = 0
 searchFlag1 = searchFlag2 = 0
 longNumber = 0
+"""仿照国赛代码的变量"""
+ccd_diff1 = ccd_diff2 = [0] * 128
+max_peak1 = max_peak2 = 0
+left_last_find1 = left_last_find2 = 0
+right_last_find1 = right_last_find2 = last_left = last_right = 0
+rising_edge_cnt = falling_edge_cnt = [0] * 5
+rising_edge = falling_edge = 0
+left_last_find = right_last_find = 0
+left = right = 64
+road_type = 0
+threshold = 150
+normalCcdSuper = 0
+number = 0
+tiaoBianCount1 = tiaoBianCount2 = 0
+left_edge_short = right_edge_short = left_edge_long = right_edge_long = 0
+isCircle = 0
+TrueRuntime = 0
+leftOrRight = "left"
+goCircle = 0
+stoptime = 0
+chance = 0
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 定时器内容编写
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 
 
 # 计算跳变点数
-def count_transitions(data):
-    # 合计跳变数
-    transitions = 0
-    for i in range(1, len(data)):
-        if data[i] != data[i - 1]:
-            transitions += 1
+def count_transitions(ccdData, interval=3, yuzhi=15):
+    tiaobian = 0
+    last_tiaobian = 0
+    this_tiaobian = 0
 
-    return transitions
+    for i in range(20, 100):
+        if abs(ccdData[i] - ccdData[i + interval]) > yuzhi:
+            this_tiaobian = i
+            if this_tiaobian != last_tiaobian + 1:
+                tiaobian += 1
+            last_tiaobian = this_tiaobian
+
+    return tiaobian
 
 
 def write_ccd_in_txt(many_ccd_data, txtname, mode="w+"):
@@ -222,6 +247,7 @@ pit1.callback(time_pit_handler)
 # 启动 ticker 实例 参数是触发周期 单位是毫秒
 pit1.start(10)
 
+from Tool import search, normal
 
 """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Tips: 主函数部分
@@ -231,10 +257,10 @@ while True:
     if ticker_flag:
         runTimes += 1
         if runTimes % 50 == 0:
+            TrueRuntime += 1
             lcd.clear(0x0000)
             gc.collect()
             runTimes = 0
-
         if Statu == 1 and ccdThresholdDetermination == 0:
             # 初始确定CCD1和CCD2的阈值
             ccdThresholdDetermination = 1
@@ -255,18 +281,36 @@ while True:
         # 因为元素的特征总是ccd2先得到，所以我们使用ccd2为先决条件，当flag被提前进入时ccd2会自动退出
         # 长镜头识别十字，然后关断，只使用短镜头，知道短镜头识别到十字特征，十字路段结束
         if Statu:
-            """基本数据采集部分"""
-            key_1, key_2, key_3, Statu = Key_data(key)  # 读取按键数据
+            """国赛C语言改写的数据采集部分"""
             originalCcdData1 = ccd.get(0)
             originalCcdData2 = ccd.get(1)
-            # 对originalCcdData进行滤波
-            filteredCcdData1 = filter_ccd_data(originalCcdData1)
+            filteredCcdData1 = filter_ccd_data(originalCcdData1)  # 对originalCcdData进行滤波
             filteredCcdData2 = filter_ccd_data(originalCcdData2)
-            # 计算ccd_data所有值的求和
-            trueValue1 = sum(filteredCcdData1)
+            trueValue1 = sum(filteredCcdData1)  # 计算ccd_data所有值的求和
             trueValue2 = sum(filteredCcdData2)
-            searchLeft1, searchRight1, searchMidline1, searchFlag1 = search(filteredCcdData1)
-            searchLeft2, searchRight2, searchMidline2, searchFlag2 = search(filteredCcdData2)
+
+            max_peak1 = max_peak2 = 0
+            for i in range(3, 128):  # 求出最大的差分值
+                ccd_diff1[i] = originalCcdData1[i] - originalCcdData1[i - 3]
+                if abs(ccd_diff1[i]) > max_peak1:
+                    max_peak1 = abs(ccd_diff1[i])
+            for i in range(3, 128):  # 求出最大的差分值
+                ccd_diff2[i] = originalCcdData2[i] - originalCcdData2[i - 3]
+                if abs(ccd_diff2[i]) > max_peak2:
+                    max_peak2 = abs(ccd_diff2[i])
+
+            left1, right1, searchMidline1, searchFlag1, rising_edge_cnt, falling_edge_cnt, rising_edge, falling_edge, ccd_diff = (
+                search(originalCcdData1))
+
+            last_left1, last_right1, left_last_find1, right_last_find1, reference_width1, road_type1 = (
+                normal(originalCcdData1, left_last_find, right_last_find, rising_edge_cnt, falling_edge_cnt,
+                       rising_edge, falling_edge, road_type, last_left, last_right, ccd_diff, threshold))
+
+            normalMiddle1 = (last_left1 + last_right1) * 0.5
+            normalCcdSuper = (64 - normalMiddle1 + 1)
+
+            """原始数据采集部分"""
+            key_1, key_2, key_3, Statu = Key_data(key)  # 读取按键数据
             ccd_data = read_ccd_data(originalCcdData1, originalCcdData2, T1, T2, crossFlag)  # 获取二值化后的ccd_data
             ccd_data1 = ccd_data[0]  # 近端ccd
             ccd_data2 = ccd_data[1]  # 远端ccd
@@ -277,24 +321,20 @@ while True:
             history2[1:] = history2[:-1]
             history2[0] = ccd_data2  # history2 存储了最近10次的ccd_data2值
             searchCcdSuper1 = searchMidline1 - 64
-            searchCcdSuper2 = searchMidline2 - 64
             last10Middle1 = [searchMidline1] + last10Middle1[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
-            last10Middle2 = [searchMidline2] + last10Middle2[:-1]  # 这个数组会存储最近十次的中线位置，并保证更新
             # 这个mid_line_long 的计算方法是，目前中线占10%权重，历史中线占90%权重，最后+n补充，目前n=0
-            averageMedLine1 = 0.1 * searchMidline1 + 0.9 * sum(last10Middle1) / 10 + 0
-            averageMedLine2 = 0.1 * searchMidline2 + 0.9 * sum(last10Middle2) / 10 + 0
+            averageMedLine1 = 0.05 * searchMidline1 + 0.95 * sum(last10Middle1) / 10 + 0
             averageMedLineCcdSuper1 = averageMedLine1 - 64
             averageMedLineCcdSuper2 = averageMedLine2 - 64
 
             # 凡是区间太大的都切了
-            # if flag != 40 and flag != 5 and flag != 501 and flag != 50:
             if crossFlag == 17788 or crossFlag == 27788 or crossFlag == 57788:
-                if width1 > 80:
+                if width1 > 45:
                     ccd_data1_other = white(ccd_data1)
                 else:
                     ccd_data1_other = ccd_data1
 
-                if width2 > 60:
+                if width2 > 50:
                     ccd_data2_other = white(ccd_data2)
                 else:
                     ccd_data2_other = ccd_data2
@@ -307,9 +347,12 @@ while True:
             left_edge_long, right_edge_long, mid_line_long = find_road_edges(ccd_data2_other, flag, 2)
             ccdSuper_short = mid_line_short - 64
             ccdSuper_long = mid_line_long - 64
+
+            ccdSuper_short = 0.9 * ccdSuper_short + 0.1 * ccdSuper_long
             ccdSuper = ccdSuper_long  # 正常情况下采用CCD2循迹
-            if abs(ccdSuper_long - ccdSuper_short) > 10 or flag != 0:
+            if abs(ccdSuper_long - ccdSuper_short) > 7 or flag != 0:
                 ccdSuper = ccdSuper_short  # 车辆转入急弯时切换镜头，同时存在元素情况时也切换镜头
+            """原始部分采集部分结束"""
 
             """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             十字路口识别部分
@@ -317,45 +360,54 @@ while True:
             最终找到十字的跳变特征，然后将crossFlag设置值
             注意，如果CCD1和CCD2能保持直线特征，则crossFlag会自行消除为0
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
+
             # Step0 直线计数
             if width1 < 50 and width2 < 50 and abs(averageMedLine1 - averageMedLine1) < 5:
                 longNumber += 1
             else:
                 longNumber = 0
 
+            if longNumber == 50:
+                tiaoBianCount2 = 0
+                crossFlag = 0
+
             # Step1 当CCD1识别到直道,但是CCD2识别到全白
-            if searchFlag2 and width1 < 50:
+            if width2 > 80 and width1 < 50 and ccd_data2[30] == ccd_data2[40] == ccd_data2[50] ==ccd_data2[60] ==ccd_data2[70] ==ccd_data2[80] ==ccd_data2[90] ==1:
                 crossFlag = 17788
                 ccdSuper = ccdSuper_short
 
             # Step2 当CCD1 和 CCD2 均为全白
             if crossFlag == 17788:
-                if width1 > 65 and width2 > 40:
+                if width1 > 60 and width2 > 70:
                     crossFlag = 27788
+                    ccdSuper = 0
+                    time.sleep(0.3)
+                    crossFlag = 37788
 
             # Step3 当CCD2识别到直道,但是CCD1识别到全白
             if crossFlag == 27788:
-                if searchFlag1 and searchFlag2 != 1:
+                if width1 > 80 and width2 < 60:
                     crossFlag = 37788
                     ccdSuper = ccdSuper_long
                     Yaw = 0
 
             # Step4 CCD1 和 CCD2 均判断为直道特征,此时进入十字圆环
-            if ((crossFlag == 17788 or crossFlag == 27788) and abs(mid_line_short - mid_line_long) < 10
+            if ((crossFlag == 27788) and abs(mid_line_short - mid_line_long) < 10
                     and searchFlag1 == 0 and searchFlag2 == 0 and width1 < 50):
                 crossFlag = 47788
                 Yaw = 0
 
             # Step5 退出十字圆环
-            if crossFlag == 37788 or crossFlag == 47788 and Yaw >= 260:
-                crossFlag = 57788
+            if crossFlag == 47788 and Yaw >= 260:
+                crossFlag = 0
+                time.sleep(0.3)
                 Yaw = 0
 
             if crossFlag == 17788:
-                ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
+                ccdSuper = ccdSuper_short
 
             if crossFlag == 27788:
-                ccdSuper = 0
+                ccdSuper = min(ccdSuper_short, ccdSuper_long, key=abs)
 
             if crossFlag == 37788:
                 ccdSuper = ccdSuper_short
@@ -363,31 +415,87 @@ while True:
             if crossFlag == 47788:
                 ccdSuper = ccdSuper_short
 
-            if crossFlag == 57788:
-                pass
+
 
 
             """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             圆环识别部分
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
 
+            if flag != 0:
+                crossFlag = 0
             # flag = Element_flag(ccd_data1, left_edge_short, right_edge_short, ahead, Yaw, ccd_data2)
 
-            last_flag = flag
-            if flag != last_flag:
-                realLastFlag = flag  # realLastFlag存储上一次与当前flag不同时候的flag
+            from Elements_CCD import is_circle2, Go_circle_now2, Wait_to_outCircle
 
-            # 读取跳变点
-            number = count_transitions(ccd_data1)
-            if number > 4 and abs(mid_line_long - 64) < 7 and width1 < 40:
-                flag = 10
+            if chance > 0:
+                if isCircle == 0:
+                    isCircle, leftOrRight = is_circle2(width1, width2, left_edge_short, right_edge_short, left_edge_long,
+                                                       right_edge_long)
+                    if isCircle and flag != 4 and flag != 40 and flag != 5 and flag != 50 and flag != 501:
+                        TrueRuntime = 0  # 第一次检测到isCircle，将计时装置归零
+                        flag = 4
+                        Yaw = 0
+
+                if TrueRuntime >= 5:
+                    # 连续500次都没有进入入环
+                    isCircle = 0
+                    flag = 0
+
+                # 预入环模式
+                if isCircle:
+                    goCircle = Go_circle_now2(width1, width2, leftOrRight, left_edge_short, right_edge_short,
+                                              left_edge_long, right_edge_long)
+                if goCircle and flag == 4:
+                    flag = 40
+
+                if abs(Yaw) >= 40 and (flag == 40):
+                    flag = 5
+
+                if abs(Yaw) >= 230 and (flag == 5):
+                    flag = 501
+
+                if abs(Yaw) >= 330 and flag == 501:
+                    flag = 50
+                    TrueRuntime = 0
+
+                if flag == 50 and TrueRuntime >= 2:
+                    chance = chance - 1
+                    flag = 0
+
+                last_flag = flag
+                if flag != last_flag:
+                    realLastFlag = flag  # realLastFlag存储上一次与当前flag不同时候的flag
+
+
+            """
+            斑马线停车
+            停车flag为10
+
+
+            if abs(ccdSuper) <= 10:
+                number1 = count_transitions(originalCcdData1)
+                number2 = count_transitions(originalCcdData2)
+                if number2 >= 5 and width1 < 60:
+                    flag = 10
+            """
+
+            if width1 == 0 and width2 == 0:
+                stoptime += 1
+                if stoptime == 50:
+                    flag = 10
+            else:
+                stoptime = 0
 
             # 蜂鸣器简单调用
             # 预备阶段响铃
-            if flag == 50:
+
+            if flag == 4:
                 BEEP.value(True)
             else:
                 BEEP.value(False)
+
+
 
         debugMode = 0  # Debug模式，如果启用需要在这里设置为1，启用后每100次While的执行就会打印一次数据
         if debugMode:
@@ -509,27 +617,27 @@ while True:
     """屏幕显示部分"""
     """初级菜单(1级)"""
     if displayCheck == 0 and menu == 0:
-        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Elements3"],
+        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Circle"],
                         [flag, 0, 0, 0, 0, 0])
 
     if displayCheck == 1 and menu == 0:
-        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Elements3"],
+        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Circle"],
                         [flag, 1, 0, 0, 0, 0])  # menu = 1
 
     if displayCheck == 2 and menu == 0:
-        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Elements3"],
+        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Circle"],
                         [flag, 0, 1, 0, 0, 0])  # menu = 2
 
     if displayCheck == 3 and menu == 0:
-        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Elements3"],
+        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Circle"],
                         [flag, 0, 0, 1, 0, 0])  # menu = 3
 
     if displayCheck == 4 and menu == 0:
-        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Elements3"],
+        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Circle"],
                         [flag, 0, 0, 0, 1, 0])  # menu = 4
 
     if displayCheck == 5 and menu == 0:
-        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Elements3"],
+        display_strings(lcd, ["flag ", "Choose Speed ", "Elements ", "Data Save", "Elements2", "Circle"],
                         [flag, 0, 0, 0, 0, 1])  # menu = 5
 
     """速度设定菜单(2级)"""
@@ -567,17 +675,16 @@ while True:
         display_strings(lcd,
                         ["flag", "crossFlag", "searchFlag", "searchFlag2", "ccd1", "ccd2", "width1", "width2", "T1",
                          "T2",
-                         "searchMidline1", "searchMidline2"],
+                         "searchMidline1", "normalCcdSuper", "number"],
                         [flag, crossFlag, searchFlag1, searchFlag2, smallCcd, bigCcd, width1, width2, T1, T2,
-                         searchMidline1, searchMidline2])
+                         searchMidline1, normalCcdSuper, number])
 
+    """数据展示菜单(2级)"""
     if menu == 5:
-        pass
-        """
         display_strings(lcd,
-            ["left", "right", "left_last_find", "right_last_find", "reference_width", "road_type"],
-            [left, right, left_last_find, right_last_find, reference_width, road_type])
-        """
+                        ["width1", "width2", "left1", "right1", "left2", "right2", "isCircle"],
+                        [width1, width2, left_edge_short, right_edge_short, left_edge_long, right_edge_long, isCircle]
+                        )
 
     """ 屏幕显示部分结束"""
     # 按键跳出程序
@@ -586,5 +693,6 @@ while True:
         print("Ticker stop.")
         break
     gc.collect()
+
 
 

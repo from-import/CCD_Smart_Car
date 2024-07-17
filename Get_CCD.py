@@ -2,7 +2,6 @@ from machine import *
 from seekfree import TSL1401
 
 
-
 def search(pixel, got_yuzhi=150, flag=0):
     max_peak = 0
     rising_edge_cnt = 0
@@ -55,7 +54,6 @@ def search(pixel, got_yuzhi=150, flag=0):
     return left, right, (left + right) // 2, searchFlag
 
 
-
 def get_mid(a, b, c):
     # 获取三个值中的中间值。
     x = 0
@@ -88,6 +86,8 @@ def bin_ccd_filter(data):
 
 
 """函数作用：return目前计算出来的阈值"""
+
+
 def threshold_determination(data):
     # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
     # 找出数据列表中的最大值和最小值，确定数据的动态范围。
@@ -160,10 +160,11 @@ def read_ccd_data(ccd_data1, ccd_data2, T1, T2, crossFlag, flag=0):
     return [binary_ccd1, binary_ccd2]
 
 
-def white(ccd_data, n=35):
+def white(ccd_data, n=40):
     ccd_data[:n] = [0] * n
     ccd_data[-n:] = [0] * n
     return ccd_data
+
 
 """
 find_road_edges : 查找道路左侧和右侧的边界位置，并计算中线位置。
@@ -217,11 +218,11 @@ def find_road_edges(ccd_data, flag, name):
 
     if (left_edge == start or left_edge == 0) and right_edge != start:
         # 仅检测到右边界
-        mid_line = right_edge - 40
+        mid_line = right_edge - 30
 
     elif (right_edge == start or right_edge == len(ccd_data) - 1) and left_edge != start:
         # 仅检测到左边界
-        mid_line = left_edge + 40
+        mid_line = left_edge + 30
 
     elif right_edge != start and left_edge != start:
         # 同时检测到左右边界且不为全白情况
@@ -237,7 +238,7 @@ def find_road_edges(ccd_data, flag, name):
 
         flag = 40 入环   舵机打角，由mid_line选定打角方向
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    #print(name)
+    # print(name)
     if name == 1:
         if flag:
             if Special_Elements(left_edge, right_edge, flag, mid_line):
@@ -265,20 +266,20 @@ def Special_Elements(left_edge, right_edge, flag, line):
             leftOrRight = 1 if (abs(left_edge - 64) > abs(right_edge - 64)) else 0
             # print(leftOrRight)
         # 单边找补，补到中线
-        mid_line = right_edge - 20 if leftOrRight else left_edge + 20
+        mid_line = right_edge - 15 if leftOrRight else left_edge + 15
         return mid_line
 
     if flag == 40:
-        mid_line = right_edge - 22 if not leftOrRight else left_edge + 22
+        mid_line = right_edge - 37 if not leftOrRight else left_edge + 37
         return mid_line
 
     # 圆环特殊补线，可以调整大小，为急弯
     if flag == 5:
-        mid_line = right_edge - 30 if leftOrRight else left_edge + 30
+        mid_line = right_edge - 27 if leftOrRight else left_edge + 27
         return mid_line
 
     if flag == 501:
-        mid_line = 83 if not leftOrRight else 45
+        mid_line = 100 if not leftOrRight else 28
         return mid_line
 
     if flag == 50:
@@ -309,6 +310,9 @@ u 型弯道和 0 型弯道可以认为是多个同方向普通弯道连接在一
 def calculate_curvature(x1, x2, x3):
     curvature = abs((x3 - x2) - (x2 - x1))
     return curvature
+
+
+
 
 
 
