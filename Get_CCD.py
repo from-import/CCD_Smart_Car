@@ -3,7 +3,7 @@ from seekfree import TSL1401
 
 
 
-def search(pixel, got_yuzhi=100, flag=0):
+def search(pixel, got_yuzhi=150, flag=0):
     max_peak = 0
     rising_edge_cnt = 0
     falling_edge_cnt = 0
@@ -75,21 +75,19 @@ def get_mid(a, b, c):
 
 
 def bin_ccd_filter(data):
-    # 中值滤波函数，对 CCD 数据进行中值滤波处理。
-    filtered_data = []
-    # 对128个点进行平滑处理输出
-    for i in range(1, len(data) - 1):
-        mid_value = get_mid(data[i - 1], data[i], data[i + 1])
-        filtered_data.append(mid_value)
-    # 处理边界条件：保留第一个和最后一个数据点
-    filtered_data.insert(0, data[0])
-    filtered_data.append(data[-1])
-    return filtered_data
+    ave = 0
+    data_temp = data[:]
+    data_temp2 = [0] * 4
+    for i in range(len(data) - 4):
+        data_temp2 = data_temp[i:i + 4]
+        for j in range(4):
+            ave += data_temp2[j]
+        data[4 // 2 + i] = ave // 4
+        ave = 0
+    return data
 
 
 """函数作用：return目前计算出来的阈值"""
-
-
 def threshold_determination(data):
     # 第一步：找出数据的最大值和最小值,最大值和最小值用于初步估计数据的对比度和分布情况
     # 找出数据列表中的最大值和最小值，确定数据的动态范围。
@@ -162,8 +160,7 @@ def read_ccd_data(ccd_data1, ccd_data2, T1, T2, crossFlag, flag=0):
     return [binary_ccd1, binary_ccd2]
 
 
-def white(ccd_data):
-    n = 40
+def white(ccd_data, n=35):
     ccd_data[:n] = [0] * n
     ccd_data[-n:] = [0] * n
     return ccd_data

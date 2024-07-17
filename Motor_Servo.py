@@ -12,7 +12,7 @@ def duty_angle(angle):
     return int(65535.0 / (1000.0 / 300) * (0.5 + angle / 90.0))
 
 
-def set_servo_angle(pwm_servo, offset,flag):
+def set_servo_angle(pwm_servo, offset,flag,ccd_data1):
     # global error_pre_last,error_pre
     """
     控制舵机的转动角度。
@@ -20,36 +20,15 @@ def set_servo_angle(pwm_servo, offset,flag):
     pwm_servo (PWM): 舵机实例。
     offset: 偏差值，由Get_CCD计算返回。
     """
-    """ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    Tips: 偏差计算对应角度(左负右正)
-    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"""
-    """if offset > 0:
-        nature = 1
-    else:
-        nature = 0
-
-    a = 11.6015
-    offset = abs(offset)
-    if 0 <= offset < 5:
-        offset = 1.6015 * offset
-    elif 5 <= offset < 10:
-        offset = 5.1015 * offset - 19.1986
-    elif offset >= 10:
-        offset = a * offset - 85.1935
-
-    if nature == 1:
-        offset = -offset
-        offset = offset * 14 / (a * 17 - 85.1935)
-    else:
-        offset = offset * 11 / (a * 17 - 85.1935)"""
-    """# 转变为三次曲线"""
     if (offset > 0):
         nature = 1
     else:
         nature = 0
+
     a = 0.02
     b = 0.06
     c = 4
+
     offset = a * pow(abs(offset), 3) + b * pow(offset, 2) + c * abs(offset)
     # 图像可接受误差（无限大时为64）23（max0ffset）——》(nature = 1,13;else,16)
     #注意，目前的三次函数认为5，10，17++为关键节点，17后打死
@@ -88,5 +67,6 @@ def set_servo_angle(pwm_servo, offset,flag):
 
     gc.collect()
     return angle
+
 
 

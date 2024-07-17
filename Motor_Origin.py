@@ -65,15 +65,15 @@ def control_motor(motor_l, motor_r, error, Statu, flag, speedSet):
     global dir_error, dir_error_last, Dir_value
     global Motor_P, Motor_I, Motor_D, speed_L, speed_R, Dir_P, Dir_I, Dir_D
 
-    if speedSet != 60 and speedSet != 80 and speedSet != 90:
-        Motor_P = 95
-        Motor_I = 2.15
-        Motor_D = 15
-        speed_L = 35
-        speed_R = 35
-        Dir_P = 0
-        Dir_I = 0.4
-        Dir_D = 0
+    if speedSet !=60 and speedSet != 80 and speedSet != 90:
+        Motor_P = 120
+        Motor_I = 0
+        Motor_D = 0
+        speed_L = 50
+        speed_R = 50
+        Dir_P = 6
+        Dir_I = 2
+        Dir_D = 4
 
     if speedSet == 60:
         Motor_P = 90
@@ -89,8 +89,8 @@ def control_motor(motor_l, motor_r, error, Statu, flag, speedSet):
         Motor_P = 90
         Motor_I = 2
         Motor_D = 15
-        speed_L = 80
-        speed_R = 80
+        speed_L = 70
+        speed_R = 70
         Dir_P = 0
         Dir_I = 2.5
         Dir_D = 0
@@ -99,8 +99,8 @@ def control_motor(motor_l, motor_r, error, Statu, flag, speedSet):
         Motor_P = 90
         Motor_I = 2
         Motor_D = 15
-        speed_L = 90
-        speed_R = 90
+        speed_L = 80
+        speed_R = 80
         Dir_P = 0
         Dir_I = 2.5
         Dir_D = 0
